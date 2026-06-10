@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TeamFlow · CDM Smith Abu Dhabi</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ══════════════ TOKENS ══════════════ */
+:root {
+  --bg:       #f0f2f5;
+  --bg2:      #e8eaed;
+  --panel:    #ffffff;
+  --panel2:   #f7f8fa;
+  --border:   #e2e5eb;
+  --border2:  #cdd1db;
+  --ink:      #0f1623;
+  --ink2:     #2d3748;
+  --ink3:     #4a5568;
+  --ink4:     #718096;
+  --ink5:     #a0aec0;
+
+  --blue:     #1a56db;
+  --blue-lt:  #ebf0ff;
+  --blue-md:  #3b82f6;
+  --green:    #057a55;
+  --green-lt: #def7ec;
+  --amber:    #b45309;
+  --amber-lt: #fef3c7;
+  --red:      #c81e1e;
+  --red-lt:   #fde8e8;
+  --purple:   #6c2bd9;
+  --purple-lt:#ede9fe;
+  --teal:     #0694a2;
+  --teal-lt:  #d5f5f6;
+  --orange:   #c05621;
+  --orange-lt:#feecdc;
+
+  --sidebar-w: 230px;
+  --top-h:     54px;
+  --r:         8px;
+  --r-lg:      12px;
+  --shadow:    0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+  --shadow-lg: 0 4px 24px rgba(0,0,0,.12);
+}
+html[dir="rtl"] { font-family:'Inter',sans-serif; }
+
+/* ══════════════ RESET ══════════════ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;overflow:hidden;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ══════════════ LOGIN ══════════════ */
+#login {
+  position:fixed;inset:0;
+  background:linear-gradient(135deg,#1a56db 0%,#0f1623 100%);
+  z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.login-card {
+  background:#fff;border-radius:var(--r-lg);
+  width:100%;max-width:440px;
+  box-shadow:var(--shadow-lg);overflow:hidden;
+}
+.login-head {
+  background:linear-gradient(135deg,#1a56db,#3b82f6);
+  padding:28px 28px 20px;text-align:center;
+}
+.login-logo {
+  width:52px;height:52px;border-radius:14px;
+  background:rgba(255,255,255,.2);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:18px;color:#fff;margin-bottom:12px;
+  border:2px solid rgba(255,255,255,.3);
+}
+.login-title{font-size:22px;font-weight:800;color:#fff;letter-spacing:-.03em;}
+.login-sub{font-size:12px;color:rgba(255,255,255,.7);margin-top:4px;}
+.login-body{padding:24px;}
+.login-section-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink4);margin-bottom:10px;}
+.user-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;}
+.ucard{
+  border:2px solid var(--border);border-radius:var(--r);
+  padding:12px 10px;cursor:pointer;transition:all .15s;text-align:left;
+}
+.ucard:hover{border-color:var(--blue-md);background:var(--blue-lt);}
+.ucard.sel{border-color:var(--blue);background:var(--blue-lt);}
+.ucard-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;margin-bottom:7px;}
+.ucard-name{font-size:12px;font-weight:700;color:var(--ink);}
+.ucard-role{font-size:10px;color:var(--ink4);margin-top:1px;line-height:1.3;}
+
+.pin-wrap{display:none;}
+.pin-title{font-size:11px;font-weight:600;color:var(--ink3);text-align:center;margin-bottom:10px;}
+.pin-dots{display:flex;gap:8px;justify-content:center;margin-bottom:14px;}
+.pdot{width:13px;height:13px;border-radius:50%;border:2px solid var(--border2);background:#fff;transition:all .2s;}
+.pdot.f{background:var(--blue);border-color:var(--blue);}
+.pdot.e{background:var(--red);border-color:var(--red);animation:sh .3s ease;}
+@keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.nk{
+  background:var(--panel2);border:1px solid var(--border);
+  border-radius:var(--r);padding:12px;font-size:16px;font-weight:600;
+  color:var(--ink);cursor:pointer;text-align:center;
+  transition:all .12s;user-select:none;
+}
+.nk:hover{background:var(--border);} .nk:active{transform:scale(.95);}
+.nk.del{font-size:13px;color:var(--ink3);}
+.nk.ok{background:var(--blue);color:#fff;border-color:var(--blue);font-size:12px;font-weight:700;}
+.nk.ok:hover{background:#1648c0;}
+.login-err{text-align:center;color:var(--red);font-size:11px;margin-top:10px;min-height:16px;}
+
+/* ══════════════ SHELL ══════════════ */
+#shell{display:flex;height:100vh;overflow:hidden;}
+
+/* Sidebar */
+#sb{
+  width:var(--sidebar-w);min-width:var(--sidebar-w);
+  background:var(--ink);
+  display:flex;flex-direction:column;
+  transition:width .25s;overflow:hidden;
+  flex-shrink:0;
+}
+#sb.slim{width:52px;min-width:52px;}
+.sb-logo{
+  padding:14px 16px;display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;
+}
+.sb-logo-mark{
+  width:32px;height:32px;border-radius:9px;flex-shrink:0;
+  background:var(--blue);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:12px;color:#fff;
+}
+.sb-brand-name{font-size:14px;font-weight:800;color:#fff;white-space:nowrap;letter-spacing:-.02em;}
+.sb-brand-org{font-size:9px;color:rgba(255,255,255,.4);margin-top:1px;}
+
+.sb-user{
+  padding:10px 14px;display:flex;align-items:center;gap:9px;
+  border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;
+  overflow:hidden;
+}
+.sb-user-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:9px;color:#fff;}
+.sb-user-name{font-size:11px;font-weight:700;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;}
+.sb-user-role{font-size:9px;color:rgba(255,255,255,.4);}
+.sb-role-badge{margin-left:auto;font-size:8px;font-weight:700;padding:2px 6px;border-radius:20px;flex-shrink:0;}
+.badge-admin{background:var(--blue);color:#fff;}
+.badge-member{background:rgba(255,255,255,.1);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.15);}
+
+.sb-scroll{flex:1;overflow-y:auto;padding:8px 0 12px;}
+.sb-sec{padding:10px 14px 3px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.3);white-space:nowrap;}
+#sb.slim .sb-sec{opacity:0;}
+.nb{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 12px;margin:1px 8px;border-radius:7px;
+  cursor:pointer;font-size:12px;font-weight:500;
+  color:rgba(255,255,255,.6);transition:all .15s;
+  white-space:nowrap;overflow:hidden;position:relative;
+}
+.nb:hover{background:rgba(255,255,255,.08);color:rgba(255,255,255,.9);}
+.nb.on{background:rgba(26,86,219,.35);color:#fff;}
+.nb.on::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:60%;background:var(--blue-md);border-radius:0 2px 2px 0;}
+.nb-ic{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+.nb-lbl{flex:1;}
+.nb-ct{font-size:8px;font-weight:700;padding:1px 5px;border-radius:20px;flex-shrink:0;}
+.ct-r{background:#e53e3e;color:#fff;}
+.ct-a{background:#d97706;color:#fff;}
+.ct-b{background:#3b82f6;color:#fff;}
+.ct-g{background:#059669;color:#fff;}
+
+.sb-foot{padding:10px;border-top:1px solid rgba(255,255,255,.08);flex-shrink:0;}
+.sb-logout{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-radius:7px;cursor:pointer;
+  color:rgba(255,255,255,.45);font-size:11px;font-weight:500;
+  transition:all .15s;
+}
+.sb-logout:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.8);}
+
+/* Main */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#topbar{
+  height:var(--top-h);flex-shrink:0;
+  background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;padding:0 20px;
+  box-shadow:0 1px 0 var(--border);
+}
+.tb-tog{
+  width:28px;height:28px;border-radius:6px;
+  background:transparent;border:1px solid var(--border);
+  cursor:pointer;color:var(--ink3);font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.tb-tog:hover{background:var(--bg);border-color:var(--border2);}
+.tb-title{font-size:16px;font-weight:700;color:var(--ink);letter-spacing:-.02em;}
+.tb-sub{font-size:10px;color:var(--ink4);margin-top:1px;}
+.tb-gap{flex:1;}
+.tb-search{
+  display:flex;align-items:center;gap:7px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:7px;padding:5px 11px;
+}
+.tb-search input{background:transparent;border:none;outline:none;font-family:'Inter',sans-serif;font-size:12px;color:var(--ink);width:180px;}
+.tb-search input::placeholder{color:var(--ink5);}
+.tb-actions{display:flex;align-items:center;gap:8px;}
+.lang-tog{
+  display:flex;align-items:center;gap:4px;
+  padding:5px 10px;border-radius:7px;
+  border:1px solid var(--border);background:var(--panel2);
+  font-size:11px;font-weight:600;color:var(--ink3);cursor:pointer;
+  transition:all .15s;
+}
+.lang-tog:hover{background:var(--bg2);}
+.groq-status{
+  display:flex;align-items:center;gap:5px;
+  padding:5px 10px;border-radius:7px;
+  font-size:10px;font-weight:600;
+  border:1px solid var(--border);background:var(--panel2);
+}
+.gs-dot{width:7px;height:7px;border-radius:50%;}
+
+#content{flex:1;overflow-y:auto;padding:20px;}
+
+/* ══════════════ PAGES ══════════════ */
+.page{display:none;animation:fadeUp .18s ease;}
+.page.on{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ══════════════ COMPONENTS ══════════════ */
+/* Section header */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+.sec-title{font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.025em;}
+.sec-sub{font-size:11px;color:var(--ink4);margin-top:2px;}
+.sec-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+/* Cards */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px;box-shadow:var(--shadow);}
+.card-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.card-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+.ci-b{background:var(--blue-lt);}
+.ci-g{background:var(--green-lt);}
+.ci-a{background:var(--amber-lt);}
+.ci-r{background:var(--red-lt);}
+.ci-p{background:var(--purple-lt);}
+.ci-t{background:var(--teal-lt);}
+.ci-o{background:var(--orange-lt);}
+
+/* Grid */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+
+/* Stat cards */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px;}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+.stat::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.st-b::after{background:var(--blue);}
+.st-g::after{background:var(--green);}
+.st-a::after{background:var(--amber);}
+.st-r::after{background:var(--red);}
+.st-p::after{background:var(--purple);}
+.stat-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink4);margin-bottom:7px;}
+.stat-val{font-size:26px;font-weight:800;letter-spacing:-.04em;line-height:1;}
+.sv-b{color:var(--blue);}
+.sv-g{color:var(--green);}
+.sv-a{color:var(--amber);}
+.sv-r{color:var(--red);}
+.sv-p{color:var(--purple);}
+.stat-sub{font-size:10px;color:var(--ink4);margin-top:5px;}
+
+/* Tags/badges */
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap;}
+.tg{background:var(--bg2);color:var(--ink3);border:1px solid var(--border);}
+.tg-b{background:var(--blue-lt);color:var(--blue);border:1px solid #bfcfe8;}
+.tg-g{background:var(--green-lt);color:var(--green);border:1px solid #a7d7c5;}
+.tg-a{background:var(--amber-lt);color:var(--amber);border:1px solid #f0cc7a;}
+.tg-r{background:var(--red-lt);color:var(--red);border:1px solid #f5b8b8;}
+.tg-p{background:var(--purple-lt);color:var(--purple);border:1px solid #c4b5fd;}
+.tg-t{background:var(--teal-lt);color:var(--teal);border:1px solid #99e6ea;}
+.tg-o{background:var(--orange-lt);color:var(--orange);border:1px solid #f6c9a6;}
+
+/* Progress */
+.prog{height:6px;background:var(--bg2);border-radius:3px;overflow:hidden;}
+.prog-f{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1);}
+
+/* Divider */
+.divider{height:1px;background:var(--border);margin:14px 0;}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-primary:hover{background:#1648c0;box-shadow:0 2px 8px rgba(26,86,219,.3);}
+.btn-secondary{background:var(--panel);color:var(--ink3);border:1px solid var(--border);}
+.btn-secondary:hover{background:var(--bg);border-color:var(--border2);}
+.btn-success{background:var(--green);color:#fff;}
+.btn-success:hover{background:#046040;}
+.btn-danger{background:var(--red-lt);color:var(--red);border:1px solid #f5b8b8;}
+.btn-danger:hover{background:#fbd5d5;}
+.btn-warning{background:var(--amber-lt);color:var(--amber);border:1px solid #f0cc7a;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn-xs{padding:3px 8px;font-size:10px;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-icon{padding:6px;border-radius:var(--r);background:transparent;border:1px solid var(--border);color:var(--ink3);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;}
+.btn-icon:hover{background:var(--bg);}
+
+/* Form */
+.fg{margin-bottom:12px;}
+.lbl{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:4px;}
+input,select,textarea{width:100%;background:var(--panel2);border:1.5px solid var(--border);border-radius:var(--r);padding:8px 11px;color:var(--ink);font-family:'Inter',sans-serif;font-size:13px;outline:none;transition:border .2s;}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(26,86,219,.08);}
+textarea{resize:vertical;min-height:68px;}
+select option{background:#fff;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.form-hint{font-size:10px;color:var(--ink5);margin-top:3px;}
+
+/* Alerts */
+.alert{border-radius:var(--r);padding:10px 14px;font-size:12px;line-height:1.55;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;}
+.al-r{background:var(--red-lt);border:1px solid #f5b8b8;color:var(--red);}
+.al-a{background:var(--amber-lt);border:1px solid #f0cc7a;color:var(--amber);}
+.al-b{background:var(--blue-lt);border:1px solid #bfcfe8;color:var(--blue);}
+.al-g{background:var(--green-lt);border:1px solid #a7d7c5;color:var(--green);}
+.al-p{background:var(--purple-lt);border:1px solid #c4b5fd;color:var(--purple);}
+
+/* Table */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:9px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);background:var(--panel2);border-bottom:1px solid var(--border);}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--ink2);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--bg);}
+td strong{color:var(--ink);}
+
+/* Kanban */
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start;}
+.kb-col{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
+.kb-hd{padding:10px 14px;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:7px;background:var(--panel2);}
+.kb-hd-dot{width:8px;height:8px;border-radius:50%;}
+.kb-ct{margin-left:auto;background:var(--panel);border:1px solid var(--border);border-radius:20px;font-size:10px;padding:1px 7px;color:var(--ink3);}
+.kb-items{padding:8px;display:flex;flex-direction:column;gap:7px;min-height:50px;}
+.tc{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:11px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);}
+.tc:hover{border-color:var(--blue-md);box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-1px);}
+.tc-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px;line-height:1.4;}
+.tc-proj{font-size:10px;color:var(--ink4);margin-bottom:6px;display:flex;align-items:center;gap:4px;}
+.tc-proj-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.tc-foot{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.av{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;flex-shrink:0;}
+.pd{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.pd-r{background:var(--red);}
+.pd-a{background:var(--amber);}
+.pd-b{background:var(--blue-md);}
+.pd-g{background:var(--green);}
+
+/* Spinner */
+.spin{width:16px;height:16px;flex-shrink:0;border:2px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:sp .55s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Chat */
+#chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:11px;}
+.cm{display:flex;gap:9px;}
+.cm-av{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:2px;}
+.cm-av.ai-av{background:var(--blue);color:#fff;}
+.cm-av.usr-av{background:var(--ink2);color:#fff;}
+.cm-bub{flex:1;}
+.cm-who{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-bottom:2px;}
+.cm-txt{background:var(--panel2);border:1px solid var(--border);border-radius:9px;border-top-left-radius:2px;padding:9px 12px;font-size:12.5px;line-height:1.6;color:var(--ink);}
+.cm.usr .cm-txt{background:var(--blue-lt);border-color:#bfcfe8;border-top-left-radius:9px;border-top-right-radius:2px;}
+.cm-txt p{margin-bottom:5px;}.cm-txt p:last-child{margin-bottom:0;}
+.cm-txt ul,.cm-txt ol{padding-left:16px;margin:4px 0;}.cm-txt li{margin-bottom:2px;}
+.cm-txt strong{color:var(--blue);}
+.cm-txt code{font-family:'IBM Plex Mono',monospace;background:var(--bg2);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--ink2);}
+.tdot{width:5px;height:5px;background:var(--blue-md);border-radius:50%;animation:td .8s ease-in-out infinite;}
+.tdot:nth-child(2){animation-delay:.18s;}.tdot:nth-child(3){animation-delay:.36s;}
+@keyframes td{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
+.chat-bar{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.chat-bar textarea{min-height:38px;max-height:90px;resize:none;flex:1;font-size:12.5px;}
+
+/* Modal */
+.modal-ov{position:fixed;inset:0;background:rgba(15,22,35,.5);backdrop-filter:blur(4px);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);width:100%;max-width:640px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);}
+.modal-hd{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.modal-hd h3{font-size:15px;font-weight:700;flex:1;letter-spacing:-.02em;}
+.modal-bd{padding:20px;overflow-y:auto;flex:1;}
+.modal-ft{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;}
+
+/* Status panel — SmartHub / TPD / NOC stages */
+.stage-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow);}
+.stage-hd{padding:12px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid var(--border);background:var(--panel2);}
+.stage-hd:hover{background:var(--bg);}
+.stage-title{font-size:13px;font-weight:700;flex:1;}
+.stage-body{padding:14px 16px;display:none;}
+.stage-body.open{display:block;}
+
+.disc-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);}
+.disc-row:last-child{border-bottom:none;}
+.disc-name{flex:1;font-size:12px;font-weight:500;}
+.disc-status{min-width:110px;}
+.disc-date{font-size:10px;color:var(--ink4);min-width:80px;}
+.disc-notes{font-size:11px;color:var(--ink4);flex:2;}
+.disc-actions{display:flex;gap:4px;}
+
+/* NOC analysis card */
+.noc-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:10px;box-shadow:var(--shadow);}
+.noc-card-hd{padding:11px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--panel2);border-bottom:1px solid var(--border);}
+.noc-card-body{padding:14px 16px;display:none;}
+.noc-card-body.open{display:block;}
+
+/* Comment card for AI analysis */
+.comment-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px;border-left:3px solid transparent;}
+.cc-critical{border-left-color:var(--red);}
+.cc-major{border-left-color:var(--amber);}
+.cc-minor{border-left-color:var(--blue-md);}
+.cc-info{border-left-color:var(--green);}
+
+/* Upload zone */
+.dropzone{border:2px dashed var(--border2);border-radius:var(--r-lg);padding:30px;text-align:center;cursor:pointer;transition:all .2s;background:var(--panel2);}
+.dropzone:hover,.dropzone.drag{border-color:var(--blue);background:var(--blue-lt);}
+
+/* Checklist */
+.cb-item{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.cb-item:last-child{border-bottom:none;}
+.cb-box{width:16px;height:16px;border-radius:4px;flex-shrink:0;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.cb-box.on{background:var(--green);border-color:var(--green);}
+.cb-box.on::after{content:'✓';font-size:9px;color:#fff;font-weight:800;}
+.cb-lbl{font-size:12px;color:var(--ink);}
+.cb-sub{font-size:10px;color:var(--ink4);}
+
+/* Pill selector */
+.pill-row{display:flex;flex-wrap:wrap;gap:6px;}
+.pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid var(--border);color:var(--ink3);cursor:pointer;transition:all .15s;background:var(--panel);}
+.pill:hover{border-color:var(--blue-md);color:var(--blue);}
+.pill.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+
+/* Admin badge */
+.admin-lock{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700;background:var(--blue-lt);color:var(--blue);border:1px solid #bfcfe8;margin-left:6px;}
+
+/* Timeline */
+.tl{position:relative;padding-left:20px;}
+.tl::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:1.5px;background:var(--border);}
+.tl-item{position:relative;margin-bottom:13px;}
+.tl-dot{position:absolute;left:-17px;top:3px;width:9px;height:9px;border-radius:50%;border:2px solid var(--blue-md);background:var(--panel);}
+.tl-dot.done{background:var(--green);border-color:var(--green);}
+.tl-dot.warn{border-color:var(--amber);}
+.tl-dot.overdue{background:var(--red);border-color:var(--red);}
+.tl-date{font-size:9px;color:var(--ink4);font-family:'IBM Plex Mono',monospace;}
+.tl-title{font-size:12px;font-weight:600;color:var(--ink);}
+.tl-meta{font-size:10px;color:var(--ink4);}
+
+/* Swatch picker */
+.swatch-row{display:flex;gap:7px;flex-wrap:wrap;}
+.swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s;}
+.swatch.sel{border-color:var(--ink);}
+
+/* Responsive */
+@media(max-width:1100px){.stats-row{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:960px){
+  #sb{width:52px;min-width:52px;}
+  .sb-brand-name,.sb-brand-org,.sb-user-name,.sb-user-role,.sb-role-badge,.sb-sec,.nb-lbl,.nb-ct{display:none;}
+  .stats-row{grid-template-columns:repeat(2,1fr);}
+  .kanban{grid-template-columns:1fr 1fr;}
+}
+@media(max-width:600px){
+  .g2,.g3,.g4,.g5,.kanban,.row2,.row3{grid-template-columns:1fr;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+  #content{padding:12px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="login">
+  <div class="login-card">
+    <div class="login-head">
+      <div class="login-logo">TF</div>
+      <div class="login-title">TeamFlow</div>
+      <div class="login-sub">CDM Smith · Abu Dhabi Infrastructure PM</div>
+    </div>
+    <div class="login-body">
+      <div class="login-section-lbl" id="ll-select">Select your profile / اختر ملفك الشخصي</div>
+      <div class="user-grid" id="user-grid"></div>
+      <div class="pin-wrap" id="pin-wrap">
+        <div class="pin-title" id="pin-label">Enter PIN</div>
+        <div class="pin-dots" id="pin-dots">
+          <div class="pdot" id="pd0"></div><div class="pdot" id="pd1"></div>
+          <div class="pdot" id="pd2"></div><div class="pdot" id="pd3"></div>
+        </div>
+        <div class="numpad">
+          <div class="nk" onclick="PK('1')">1</div><div class="nk" onclick="PK('2')">2</div><div class="nk" onclick="PK('3')">3</div>
+          <div class="nk" onclick="PK('4')">4</div><div class="nk" onclick="PK('5')">5</div><div class="nk" onclick="PK('6')">6</div>
+          <div class="nk" onclick="PK('7')">7</div><div class="nk" onclick="PK('8')">8</div><div class="nk" onclick="PK('9')">9</div>
+          <div class="nk del" onclick="PD()">⌫</div><div class="nk" onclick="PK('0')">0</div>
+          <div class="nk ok" onclick="PE()">Enter ✓</div>
+        </div>
+      </div>
+      <div class="login-err" id="login-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ APP SHELL ══════════════ -->
+<div id="shell" style="display:none;">
+  <nav id="sb">
+    <div class="sb-logo">
+      <div class="sb-logo-mark">TF</div>
+      <div>
+        <div class="sb-brand-name">TeamFlow</div>
+        <div class="sb-brand-org">CDM Smith · Abu Dhabi</div>
+      </div>
+    </div>
+    <div class="sb-user">
+      <div class="sb-user-av" id="sb-av"></div>
+      <div style="overflow:hidden;flex:1;">
+        <div class="sb-user-name" id="sb-name"></div>
+        <div class="sb-user-role" id="sb-role"></div>
+      </div>
+      <div class="sb-role-badge" id="sb-badge"></div>
+    </div>
+    <div class="sb-scroll" id="nav-list"></div>
+    <div class="sb-foot">
+      <div class="sb-logout" onclick="logout()">
+        <span>⬅</span><span style="white-space:nowrap;overflow:hidden;">Sign out</span>
+      </div>
+    </div>
+  </nav>
+
+  <div id="main">
+    <div id="topbar">
+      <button class="tb-tog" onclick="toggleSB()">☰</button>
+      <div>
+        <div class="tb-title" id="pg-title">Dashboard</div>
+        <div class="tb-sub" id="pg-sub">CDM Smith · Abu Dhabi Infrastructure</div>
+      </div>
+      <div class="tb-gap"></div>
+      <div class="tb-search">
+        <span style="color:var(--ink5);font-size:12px;">🔍</span>
+        <input id="search-in" placeholder="Search tasks, projects, NOCs..." oninput="doSearch(this.value)"/>
+      </div>
+      <div class="tb-actions">
+        <div class="groq-status" id="groq-pill">
+          <div class="gs-dot" id="gs-dot" style="background:var(--amber);"></div>
+          <span id="gs-lbl">No AI Key</span>
+        </div>
+        <button class="lang-tog" onclick="toggleLang()" id="lang-btn">🌐 العربية</button>
+      </div>
+    </div>
+
+    <div id="content">
+      <!-- DASHBOARD -->
+      <div class="page on" id="pg-dash"></div>
+      <!-- MY TASKS -->
+      <div class="page" id="pg-tasks"></div>
+      <!-- MY PROJECTS -->
+      <div class="page" id="pg-myprojects"></div>
+      <!-- NOC TRACKER -->
+      <div class="page" id="pg-noc"></div>
+      <!-- SMARTHUB -->
+      <div class="page" id="pg-smarthub"></div>
+      <!-- SUBMISSIONS -->
+      <div class="page" id="pg-submissions"></div>
+      <!-- DEADLINES -->
+      <div class="page" id="pg-deadlines"></div>
+      <!-- AI ASSISTANT -->
+      <div class="page" id="pg-ai" style="display:none;">
+        <div style="margin-bottom:12px;display:flex;align-items:flex-start;justify-content:space-between;">
+          <div>
+            <div class="sec-title" id="ai-title">AI Project Manager</div>
+            <div class="sec-sub" id="ai-sub">Groq · Llama 3.3 70B · Free · Abu Dhabi infrastructure specialist</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="clearChat()">🗑 Clear Chat</button>
+        </div>
+        <div class="card" style="padding:0;display:flex;flex-direction:column;height:calc(100vh - var(--top-h) - 130px);min-height:360px;">
+          <div id="chat-msgs"></div>
+          <div class="chat-bar">
+            <textarea id="chat-in" placeholder="Ask about tasks, NOC procedures, SmartHub stages, authority requirements, email drafts..." onkeydown="chatKD(event)"></textarea>
+            <button class="btn btn-primary" id="send-btn" onclick="sendAI()" style="align-self:flex-end;padding:8px 16px;">
+              <span id="send-lbl">Send ↑</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- ADMIN: ALL TASKS -->
+      <div class="page" id="pg-alltasks"></div>
+      <!-- ADMIN: TEAM -->
+      <div class="page" id="pg-team"></div>
+      <!-- ADMIN: ALL PROJECTS -->
+      <div class="page" id="pg-allprojects"></div>
+      <!-- ADMIN: REPORTS -->
+      <div class="page" id="pg-reports"></div>
+      <!-- ADMIN: SETTINGS -->
+      <div class="page" id="pg-settings"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-ov" id="modal-ov" style="display:none;" onclick="if(event.target===this)closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <h3 id="modal-title"></h3>
+      <button class="btn-icon" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-bd" id="modal-body"></div>
+    <div class="modal-ft" id="modal-foot"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════
+// PERSISTENCE
+// ══════════════════════════════════════════════════════
+const S = {
+  get:(k,d)=>{ try{const v=localStorage.getItem('tf3_'+k);return v?JSON.parse(v):d;}catch{return d;} },
+  set:(k,v)=>{ localStorage.setItem('tf3_'+k,JSON.stringify(v)); }
+};
+
+// ══════════════════════════════════════════════════════
+// SEED DATA
+// ══════════════════════════════════════════════════════
+const SEED_MEMBERS = [
+  {id:'MH',name:'Mutaz Hammad',nameAr:'معتز حماد',role:'Project Manager',roleAr:'مدير مشروع',pin:'1234',isAdmin:true,color:'#1a56db'},
+  {id:'AY',name:'Aya',nameAr:'آيا',role:'Design Coordinator (IDAS)',roleAr:'منسق تصميم',pin:'2222',isAdmin:false,color:'#6c2bd9'},
+  {id:'NR',name:'Nour',nameAr:'نور',role:'Project Coordinator',roleAr:'منسق مشروع',pin:'3333',isAdmin:false,color:'#0694a2'},
+  {id:'AN',name:'Anoud',nameAr:'عنود',role:'Project Coordinator',roleAr:'منسق مشروع',pin:'4444',isAdmin:false,color:'#b45309'},
+];
+const SEED_PROJECTS = [
+  {id:'p1',name:'Al Shamkha City Infrastructure',nameAr:'البنية التحتية لمدينة الشامخة',client:'ADM / Aldar',phase:'Detailed Design',color:'#1a56db',members:['MH','AY','AN'],desc:'Public realm, utilities, roads, landscaping'},
+  {id:'p2',name:'HSCT — ADNEC Segment',nameAr:'مسار الدراجات — قطعة أدنك',client:'DMT / Aldar',phase:'Design Development',color:'#6c2bd9',members:['MH','AY'],desc:'At-grade cycle track, drainage coordination'},
+  {id:'p3',name:'Al Daoon Road Development',nameAr:'تطوير طريق الداعون',client:'Aldar / WBG',phase:'Detailed Design',color:'#b45309',members:['MH','NR'],desc:'Road dualization, TAQA supply coordination'},
+  {id:'p4',name:'TIP-01663 / TIP-01735',nameAr:'مشاريع TIP',client:'Parsons / RTA',phase:'Design Handover',color:'#0694a2',members:['MH','AN','NR'],desc:'Sheikh Zayed / E48 scope handover from Dorsch'},
+];
+const SEED_TASKS = [
+  {id:'t1',title:'Respond to DMT eNOC RFI — HSCT manhole offset',proj:'p2',auth:'DMT',priority:'critical',owner:'MH',status:'doing',due:'2026-06-09',notes:'Revised cross-section needed showing 600mm clearance from track kerb'},
+  {id:'t2',title:'IDAS Batch 3 drawing upload — Al Shamkha',proj:'p1',auth:'ADM',priority:'high',owner:'AY',status:'doing',due:'2026-06-10',notes:'ADM title block, north arrow, scale bar required on all drawings'},
+  {id:'t3',title:'TAQA escalation letter — Al Daoon permanent supply',proj:'p3',auth:'TAQA',priority:'critical',owner:'NR',status:'todo',due:'2026-06-08',notes:'Permanent supply delayed to 2029 — formal escalation to Aldar required'},
+  {id:'t4',title:'Parsons TIP RFI response compilation',proj:'p4',auth:'DMT',priority:'medium',owner:'AN',status:'todo',due:'2026-06-12',notes:'6 outstanding RFIs from Parsons need responses'},
+  {id:'t5',title:'Al Shamkha ITC corridor application',proj:'p1',auth:'ITC',priority:'medium',owner:'AY',status:'todo',due:'2026-06-20',notes:'UCDM ROW-602 — 4×100mm HDPE duct route plan'},
+  {id:'t6',title:'HSCT revised cross-section drawing',proj:'p2',auth:'DMT',priority:'high',owner:'MH',status:'review',due:'2026-06-08',notes:'At-grade confirmed — show drainage manhole offset'},
+  {id:'t7',title:'Al Daoon ADM handover presentation (Arabic)',proj:'p3',auth:'ADM',priority:'medium',owner:'NR',status:'review',due:'2026-06-15',notes:'Arabic version required for ADM submission'},
+  {id:'t8',title:'ADDC conflict register — Shamkha Seg. 3A',proj:'p1',auth:'ADDC',priority:'high',owner:'AY',status:'todo',due:'2026-06-14',notes:'UCR Excel format, highlight LV/HV crossings'},
+  {id:'t9',title:'TIP-01663 monthly milestone report',proj:'p4',auth:'DMT',priority:'medium',owner:'AN',status:'todo',due:'2026-06-18',notes:'Monthly milestone for Parsons review'},
+  {id:'t10',title:'Al Daoon ADSSC drainage approval',proj:'p3',auth:'ADSSC',priority:'high',owner:'NR',status:'todo',due:'2026-06-22',notes:'Hydraulic design report submission'},
+  {id:'t11',title:'Shamkha TAQA load schedule',proj:'p1',auth:'TAQA',priority:'low',owner:'AN',status:'done',due:'2026-06-02',notes:'Completed and submitted ✓'},
+];
+const SEED_NOCS = [
+  {id:'n1',proj:'p1',auth:'TAQA/ADDC',status:'in-progress',ref:'TAQA-SHK-031',submitted:'2026-05-10',due:'2026-06-24',owner:'MH',notes:'UCR submitted, awaiting TAQA review'},
+  {id:'n2',proj:'p1',auth:'ADM/IDAS',status:'pending',ref:'IDAS-SHK-B3',submitted:'2026-06-02',due:'2026-06-16',owner:'AY',notes:'Batch 3 upload in progress'},
+  {id:'n3',proj:'p1',auth:'ITC',status:'not-started',ref:'—',submitted:null,due:'2026-07-01',owner:'AY',notes:'Application not yet submitted'},
+  {id:'n4',proj:'p2',auth:'DMT eNOC',status:'in-progress',ref:'DMT-HSCT-042',submitted:'2026-06-04',due:'2026-06-11',owner:'MH',notes:'RFI from Colin Hill outstanding'},
+  {id:'n5',proj:'p2',auth:'ADSSC',status:'pending',ref:'—',submitted:null,due:'2026-06-20',owner:'AY',notes:'Pending DMT approval first'},
+  {id:'n6',proj:'p3',auth:'TAQA',status:'blocked',ref:'TAQA-DAW-007',submitted:'2026-05-15',due:'2026-05-29',owner:'NR',notes:'BLOCKED — permanent network 2029'},
+  {id:'n7',proj:'p3',auth:'ADM',status:'in-progress',ref:'ADM-DAW-C4',submitted:'2026-05-20',due:'2026-06-17',owner:'NR',notes:'Road dualization GD submitted'},
+  {id:'n8',proj:'p4',auth:'DMT',status:'approved',ref:'DMT-TIP-011',submitted:'2026-05-20',due:'2026-06-03',owner:'AN',notes:'Scope handover approved ✓'},
+];
+// SmartHub stages per project
+const SEED_SMARTHUB = {
+  p1:{ stages:['Concept','Preliminary','Detailed'], currentStage:'Detailed',
+    disciplines:{
+      Concept:   [{name:'Roads & Transportation',status:'approved',date:'2025-06-10',comment:''},{name:'Drainage & Stormwater',status:'approved',date:'2025-06-10',comment:''},{name:'Utilities (Dry)',status:'approved',date:'2025-06-15',comment:''},{name:'Utilities (Wet)',status:'approved',date:'2025-06-15',comment:''},{name:'Landscaping',status:'approved',date:'2025-06-20',comment:''}],
+      Preliminary:[{name:'Roads & Transportation',status:'approved',date:'2025-09-12',comment:''},{name:'Drainage & Stormwater',status:'approved_conditions',date:'2025-09-15',comment:'Outfall levels to be confirmed'},{name:'Utilities (Dry)',status:'pending',date:null,comment:'Under review'},{name:'Utilities (Wet)',status:'pending',date:null,comment:'Pump station capacity to confirm'},{name:'Landscaping',status:'approved',date:'2025-09-20',comment:''}],
+      Detailed:  [{name:'Roads & Transportation',status:'in-progress',date:null,comment:'Stage submission in IDAS'},{name:'Drainage & Stormwater',status:'not-submitted',date:null,comment:''},{name:'Utilities (Dry)',status:'not-submitted',date:null,comment:''},{name:'Utilities (Wet)',status:'not-submitted',date:null,comment:''},{name:'Landscaping',status:'not-submitted',date:null,comment:''}],
+    }
+  },
+  p2:{ stages:['Concept','Preliminary','Detailed'], currentStage:'Preliminary',
+    disciplines:{
+      Concept:   [{name:'Roads & Transportation',status:'approved',date:'2025-07-05',comment:''},{name:'Cycle Track Design',status:'approved',date:'2025-07-05',comment:''},{name:'Drainage & Stormwater',status:'approved',date:'2025-07-10',comment:''}],
+      Preliminary:[{name:'Roads & Transportation',status:'approved_conditions',date:'2025-11-20',comment:'eNOC RFI outstanding'},{name:'Cycle Track Design',status:'in-progress',date:null,comment:'At-grade alignment pending DMT confirmation'},{name:'Drainage & Stormwater',status:'not-submitted',date:null,comment:''}],
+      Detailed:  [{name:'Roads & Transportation',status:'not-submitted',date:null,comment:''},{name:'Cycle Track Design',status:'not-submitted',date:null,comment:''},{name:'Drainage & Stormwater',status:'not-submitted',date:null,comment:''}],
+    }
+  },
+  p3:{ stages:['Concept','Preliminary','Detailed'], currentStage:'Detailed',
+    disciplines:{
+      Concept:   [{name:'Roads & Transportation',status:'approved',date:'2025-04-10',comment:''},{name:'Drainage & Stormwater',status:'approved',date:'2025-04-12',comment:''},{name:'Utilities',status:'approved',date:'2025-04-15',comment:''}],
+      Preliminary:[{name:'Roads & Transportation',status:'approved',date:'2025-08-20',comment:''},{name:'Drainage & Stormwater',status:'approved',date:'2025-08-22',comment:''},{name:'Utilities',status:'approved_conditions',date:'2025-08-25',comment:'TAQA supply confirmation needed'}],
+      Detailed:  [{name:'Roads & Transportation',status:'in-progress',date:null,comment:'Submitted to ADM — pending'},{name:'Drainage & Stormwater',status:'not-submitted',date:null,comment:''},{name:'Utilities',status:'not-submitted',date:null,comment:'Blocked by TAQA supply issue'}],
+    }
+  },
+  p4:{ stages:['Concept','Preliminary'], currentStage:'Preliminary',
+    disciplines:{
+      Concept:   [{name:'Roads & Transportation',status:'approved',date:'2025-03-01',comment:''},{name:'Utilities',status:'approved',date:'2025-03-05',comment:''}],
+      Preliminary:[{name:'Roads & Transportation',status:'approved',date:'2025-10-15',comment:''},{name:'Utilities',status:'approved',date:'2025-10-18',comment:''}],
+    }
+  },
+};
+// TPD status per project
+const SEED_TPD = {
+  p1:{boreholes:{status:'approved',ref:'TPD-SHK-BH-01',date:'2025-08-15',notes:'All boreholes approved'},roads:{status:'in-progress',ref:'TPD-SHK-RD-01',date:null,notes:'Pavement design under review'},corridors:{status:'pending',ref:'—',date:null,notes:'Utility corridor awaiting submission'}},
+  p2:{boreholes:{status:'approved',ref:'TPD-HSCT-BH-01',date:'2025-09-10',notes:''},roads:{status:'approved',ref:'TPD-HSCT-RD-01',date:'2025-10-05',notes:''},corridors:{status:'in-progress',ref:'TPD-HSCT-CO-01',date:null,notes:'Cycle track corridor under review'}},
+  p3:{boreholes:{status:'approved',ref:'TPD-DAW-BH-01',date:'2025-07-20',notes:''},roads:{status:'in-progress',ref:'TPD-DAW-RD-01',date:null,notes:'Dualization pavement design submitted'},corridors:{status:'not-started',ref:'—',date:null,notes:''}},
+  p4:{boreholes:{status:'not-applicable',ref:'—',date:null,notes:'Design handover only'},roads:{status:'approved',ref:'TPD-TIP-RD-01',date:'2025-11-01',notes:''},corridors:{status:'approved',ref:'TPD-TIP-CO-01',date:'2025-11-05',notes:''}},
+};
+// Route NOC per utility per project
+const SEED_ROUTE_NOC = {
+  p1:[
+    {id:'rn1',utility:'TAQA/ADDC Power',type:'Route NOC',status:'in-progress',ref:'TAQA-SHK-RT-01',submitted:'2026-04-15',due:'2026-06-30',notes:'HV cable route confirmed, NOC pending'},
+    {id:'rn2',utility:'ITC Telecom',type:'Route NOC',status:'not-started',ref:'—',submitted:null,due:'2026-07-15',notes:'UCDM ROW-602 route plan in preparation'},
+    {id:'rn3',utility:'e& (Etisalat)',type:'Route NOC',status:'not-started',ref:'—',submitted:null,due:'2026-07-15',notes:'Duct route survey not yet done'},
+    {id:'rn4',utility:'Du Telecom',type:'Route NOC',status:'not-started',ref:'—',submitted:null,due:'2026-07-15',notes:''},
+    {id:'rn5',utility:'ADSSC Sewer',type:'Route NOC',status:'approved',ref:'ADSSC-SHK-RT-01',submitted:'2026-03-01',due:'2026-04-15',notes:'Gravity sewer route approved ✓'},
+  ],
+  p2:[
+    {id:'rn6',utility:'TAQA/ADDC Power',type:'Route NOC',status:'in-progress',ref:'TAQA-HSCT-RT-01',submitted:'2026-05-01',due:'2026-06-20',notes:'Road lighting supply route under review'},
+    {id:'rn7',utility:'Du Telecom',type:'Route NOC',status:'not-started',ref:'—',submitted:null,due:'2026-07-01',notes:''},
+  ],
+  p3:[
+    {id:'rn8',utility:'TAQA/ADDC Power',type:'Route NOC',status:'blocked',ref:'TAQA-DAW-RT-01',submitted:'2026-04-20',due:'2026-05-30',notes:'BLOCKED — permanent supply network 2029'},
+    {id:'rn9',utility:'ADSSC Sewer',type:'Route NOC',status:'approved',ref:'ADSSC-DAW-RT-01',submitted:'2026-02-10',due:'2026-03-25',notes:'Foul sewer outfall route approved ✓'},
+  ],
+  p4:[
+    {id:'rn10',utility:'ITC Telecom',type:'Route NOC',status:'approved',ref:'ITC-TIP-RT-01',submitted:'2026-03-15',due:'2026-04-30',notes:'Duct route handover approved ✓'},
+    {id:'rn11',utility:'ADNOC Pipeline',type:'Route NOC',status:'approved',ref:'ADNOC-TIP-RT-01',submitted:'2026-03-10',due:'2026-04-25',notes:'Pipeline proximity check cleared ✓'},
+  ],
+};
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let MEMBERS  = S.get('members',  SEED_MEMBERS);
+let PROJECTS = S.get('projects', SEED_PROJECTS);
+let TASKS    = S.get('tasks',    SEED_TASKS);
+let NOCS     = S.get('nocs',     SEED_NOCS);
+let SMARTHUB = S.get('smarthub', SEED_SMARTHUB);
+let TPD      = S.get('tpd',      SEED_TPD);
+let ROUTE_NOC= S.get('routenoc', SEED_ROUTE_NOC);
+let GROQ_KEY = S.get('groq',     '');
+let LANG     = S.get('lang',     'en'); // 'en' or 'ar'
+let CUR      = null; // current user
+let chatHistory = [];
+
+function persist(){
+  S.set('members',MEMBERS);S.set('projects',PROJECTS);S.set('tasks',TASKS);
+  S.set('nocs',NOCS);S.set('smarthub',SMARTHUB);S.set('tpd',TPD);S.set('routenoc',ROUTE_NOC);
+}
+
+// ══════════════════════════════════════════════════════
+// i18n
+// ══════════════════════════════════════════════════════
+const T = {
+  en:{
+    dashboard:'Dashboard',myTasks:'My Tasks',myProjects:'My Projects',noc:'NOC Tracker',
+    smarthub:'SmartHub / ADM Stages',submissions:'Submissions',deadlines:'Deadlines',
+    ai:'AI Assistant',allTasks:'All Tasks',team:'Team Management',allProjects:'All Projects',
+    reports:'Analytics & Reports',settings:'Settings',signOut:'Sign Out',
+    addTask:'+ Add Task',addProject:'+ New Project',addMember:'+ Add Member',
+    save:'Save',cancel:'Cancel',delete:'Delete',edit:'Edit',assign:'Assign',
+    approved:'Approved',pending:'Pending',inProgress:'In Progress',blocked:'BLOCKED',notStarted:'Not Started',approvedCond:'Approved w/ Conditions',notSubmitted:'Not Submitted',done:'Done',
+    critical:'Critical',high:'High',medium:'Medium',low:'Low',
+    todo:'To Do',doing:'In Progress',review:'In Review',
+    noTasks:'No tasks assigned.',noProjects:'No projects assigned.',
+    adminOnly:'Admin Only',
+  },
+  ar:{
+    dashboard:'لوحة التحكم',myTasks:'مهامي',myProjects:'مشاريعي',noc:'متتبع NOC',
+    smarthub:'الموافقات الحكومية ADM',submissions:'التقديمات',deadlines:'المواعيد النهائية',
+    ai:'المساعد الذكي',allTasks:'جميع المهام',team:'إدارة الفريق',allProjects:'جميع المشاريع',
+    reports:'التقارير والتحليلات',settings:'الإعدادات',signOut:'تسجيل خروج',
+    addTask:'+ إضافة مهمة',addProject:'+ مشروع جديد',addMember:'+ إضافة عضو',
+    save:'حفظ',cancel:'إلغاء',delete:'حذف',edit:'تعديل',assign:'تعيين',
+    approved:'معتمد',pending:'معلق',inProgress:'جاري',blocked:'محظور',notStarted:'لم يبدأ',approvedCond:'معتمد بشروط',notSubmitted:'لم يُقدَّم',done:'مكتمل',
+    critical:'حرج',high:'عالي',medium:'متوسط',low:'منخفض',
+    todo:'للتنفيذ',doing:'جاري',review:'للمراجعة',
+    noTasks:'لا توجد مهام.',noProjects:'لا توجد مشاريع.',
+    adminOnly:'للمدير فقط',
+  }
+};
+const t = k => (T[LANG]||T.en)[k] || k;
+function toggleLang(){
+  LANG = LANG==='en'?'ar':'en';
+  S.set('lang',LANG);
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = LANG==='ar'?'rtl':'ltr';
+  document.getElementById('lang-btn').textContent = LANG==='en'?'🌐 العربية':'🌐 English';
+  if(CUR) rebuildNav();
+}
+
+// ══════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════
+const TODAY = new Date();
+const dF = d=>d?Math.round((new Date(d)-TODAY)/86400000):999;
+const fmt = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—';
+const fmtS = d=>d?new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'—';
+const esc = s=>(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const proj = id=>PROJECTS.find(p=>p.id===id)||{name:'?',nameAr:'?',color:'#888',members:[]};
+const mbr  = id=>MEMBERS.find(m=>m.id===id)||{name:'?',color:'#888'};
+const myP  = uid=>PROJECTS.filter(p=>p.members.includes(uid));
+const myT  = uid=>CUR?.isAdmin?TASKS:TASKS.filter(t=>t.owner===uid&&myP(uid).map(p=>p.id).includes(t.proj));
+const myN  = uid=>CUR?.isAdmin?NOCS:NOCS.filter(n=>myP(uid).map(p=>p.id).includes(n.proj));
+const pName= p=>LANG==='ar'?(p.nameAr||p.name):p.name;
+const mName= m=>LANG==='ar'?(m.nameAr||m.name):m.name;
+const PTAG = {critical:'tg-r',high:'tg-a',medium:'tg-b',low:'tg-g'};
+const PPAT = {critical:'pd-r',high:'pd-a',medium:'pd-b',low:'pd-g'};
+const NST  = {approved:'tg-g',pending:'tg-a','in-progress':'tg-b',blocked:'tg-r','not-started':'tg','approved_conditions':'tg-o','not-submitted':'tg','done':'tg-g','not-applicable':'tg'};
+const NSL  = s=>({approved:t('approved'),pending:t('pending'),'in-progress':t('inProgress'),blocked:t('blocked'),'not-started':t('notStarted'),'approved_conditions':t('approvedCond'),'not-submitted':t('notSubmitted'),done:t('done'),'not-applicable':'N/A'}[s]||s);
+const KB_COLS=[{id:'todo',label:t('todo'),c:'#718096'},{id:'doing',label:t('doing'),c:'#3b82f6'},{id:'review',label:t('review'),c:'#b45309'},{id:'done',label:t('done'),c:'#057a55'}];
+const SWATCHES=['#1a56db','#6c2bd9','#b45309','#0694a2','#057a55','#c81e1e','#d97706','#374151'];
+
+// ══════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════
+let selUID='', pinBuf='';
+function buildLoginGrid(){
+  document.getElementById('user-grid').innerHTML=MEMBERS.map(m=>`
+    <div class="ucard" id="uc-${m.id}" onclick="selUser('${m.id}')">
+      <div class="ucard-av" style="background:${m.color};">${m.id}</div>
+      <div class="ucard-name">${LANG==='ar'?(m.nameAr||m.name):m.name}</div>
+      <div class="ucard-role">${LANG==='ar'?(m.roleAr||m.role):m.role}</div>
+    </div>`).join('');
+}
+function selUser(id){
+  selUID=id; pinBuf='';
+  document.querySelectorAll('.ucard').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('uc-'+id)?.classList.add('sel');
+  const m=mbr(id);
+  document.getElementById('pin-label').textContent=`PIN for ${m.name} / رمز ${m.nameAr||m.name}`;
+  document.getElementById('pin-wrap').style.display='block';
+  document.getElementById('login-err').textContent='';
+  updateDots();
+}
+function PK(k){ if(pinBuf.length>=4)return; pinBuf+=k; updateDots(); if(pinBuf.length===4)setTimeout(PE,80); }
+function PD(){ if(pinBuf.length)pinBuf=pinBuf.slice(0,-1); updateDots(); document.getElementById('login-err').textContent=''; }
+function updateDots(err=false){ for(let i=0;i<4;i++){ const d=document.getElementById('pd'+i); d.className='pdot'+(i<pinBuf.length?(err?' e':' f'):''); } }
+function PE(){
+  if(!selUID){document.getElementById('login-err').textContent='Select a profile first.';return;}
+  const m=mbr(selUID);
+  if(pinBuf===m.pin){ CUR=m; document.getElementById('login').style.display='none'; document.getElementById('shell').style.display='flex'; bootApp(); }
+  else { updateDots(true); document.getElementById('login-err').textContent='Incorrect PIN. Try again.'; setTimeout(()=>{pinBuf='';updateDots();},800); }
+}
+function logout(){ CUR=null; pinBuf=''; selUID=''; chatHistory=[]; document.getElementById('shell').style.display='none'; document.getElementById('login').style.display='flex'; document.getElementById('pin-wrap').style.display='none'; document.querySelectorAll('.ucard').forEach(c=>c.classList.remove('sel')); document.getElementById('login-err').textContent=''; }
+
+// ══════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════
+function bootApp(){
+  document.getElementById('sb-av').style.background=CUR.color;
+  document.getElementById('sb-av').textContent=CUR.id;
+  document.getElementById('sb-name').textContent=mName(CUR);
+  document.getElementById('sb-role').textContent=LANG==='ar'?(CUR.roleAr||CUR.role):CUR.role;
+  document.getElementById('sb-badge').textContent=CUR.isAdmin?'Admin':'Member';
+  document.getElementById('sb-badge').className='sb-role-badge '+(CUR.isAdmin?'badge-admin':'badge-member');
+  document.getElementById('groq-key-in') && (document.getElementById('groq-key-in').value=GROQ_KEY||'');
+  updateGroqStatus();
+  rebuildNav();
+  go('dash');
+}
+function updateGroqStatus(){
+  const dot=document.getElementById('gs-dot');
+  const lbl=document.getElementById('gs-lbl');
+  if(GROQ_KEY){dot.style.background='#057a55';lbl.textContent='Groq Active';}
+  else{dot.style.background='#d97706';lbl.textContent='No AI Key';}
+}
+function rebuildNav(){
+  const u=CUR;
+  const nb=(id,ic,lbl,badge)=>`<div class="nb" onclick="go('${id}')"><span class="nb-ic">${ic}</span><span class="nb-lbl">${lbl}</span>${badge?`<span class="nb-ct ${badge.c}">${badge.v}</span>`:''}</div>`;
+  const sec=l=>`<div class="sb-sec">${l}</div>`;
+  const overdue=myT(u.id).filter(t=>t.status!=='done'&&dF(t.due)<0).length;
+  const pendNOC=myN(u.id).filter(n=>n.status!=='approved').length;
+  const critT=myT(u.id).filter(t=>t.priority==='critical'&&t.status!=='done').length;
+  let h=sec(LANG==='ar'?'نظرة عامة':'Overview');
+  h+=nb('dash','⬡',t('dashboard'));
+  h+=nb('deadlines','📅',t('deadlines'),overdue>0?{c:'ct-r',v:overdue}:null);
+  h+=sec(LANG==='ar'?'عملي':'My Work');
+  h+=nb('tasks','✅',t('myTasks'),myT(u.id).filter(t=>t.status!=='done').length>0?{c:'ct-a',v:myT(u.id).filter(t=>t.status!=='done').length}:null);
+  h+=nb('myprojects','🏗️',t('myProjects'));
+  h+=nb('noc','📋',t('noc'),pendNOC>0?{c:'ct-b',v:pendNOC}:null);
+  h+=nb('smarthub','🏛️',t('smarthub'));
+  h+=nb('submissions','📤',t('submissions'));
+  h+=sec('AI');
+  h+=nb('ai','🤖',t('ai'));
+  if(u.isAdmin){
+    h+=sec(LANG==='ar'?'إدارة':'Admin');
+    h+=nb('alltasks','📊',t('allTasks'),critT>0?{c:'ct-r',v:critT}:null);
+    h+=nb('team','👥',t('team'));
+    h+=nb('allprojects','🗂️',t('allProjects'));
+    h+=nb('reports','📈',t('reports'));
+    h+=nb('settings','⚙️',t('settings'));
+  }
+  document.getElementById('nav-list').innerHTML=h;
+  // sidebar sign out label
+  document.querySelector('.sb-logout span:last-child').textContent=t('signOut');
+}
+
+// ══════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════
+const PG_META={
+  dash:{en:'Dashboard',ar:'لوحة التحكم',sub:{en:'CDM Smith · Abu Dhabi Infrastructure',ar:'سميث CDM · أبوظبي'}},
+  tasks:{en:'My Tasks',ar:'مهامي',sub:{en:'Tasks assigned to you',ar:'المهام المعينة لك'}},
+  myprojects:{en:'My Projects',ar:'مشاريعي',sub:{en:'Projects you are assigned to',ar:'مشاريعك المعينة'}},
+  noc:{en:'NOC Tracker',ar:'متتبع NOC',sub:{en:'Authority submissions & status',ar:'تقديمات الجهات وحالتها'}},
+  smarthub:{en:'SmartHub / ADM Stages',ar:'الموافقات ADM',sub:{en:'ADM SmartHub design stage approvals by discipline',ar:'موافقات مراحل التصميم في ADM حسب التخصص'}},
+  submissions:{en:'Submissions',ar:'التقديمات',sub:{en:'All authority submissions across projects',ar:'جميع التقديمات للجهات'}},
+  deadlines:{en:'Deadlines',ar:'المواعيد النهائية',sub:{en:'All critical dates and overdue items',ar:'جميع المواعيد الهامة'}},
+  ai:{en:'AI Project Manager',ar:'المساعد الذكي',sub:{en:'Groq · Free · Abu Dhabi infrastructure specialist',ar:'Groq · مجاني · متخصص في البنية التحتية'}},
+  alltasks:{en:'All Tasks',ar:'جميع المهام',sub:{en:'Admin — full task view across all team',ar:'المدير — عرض شامل'}},
+  team:{en:'Team Management',ar:'إدارة الفريق',sub:{en:'Admin — add members, set PINs, assign projects',ar:'إضافة أعضاء وتعيين مشاريع'}},
+  allprojects:{en:'All Projects',ar:'جميع المشاريع',sub:{en:'Admin — create, edit, assign team members',ar:'إنشاء وتعديل المشاريع'}},
+  reports:{en:'Analytics & Reports',ar:'التقارير',sub:{en:'Admin — project analytics and AI reports',ar:'تحليلات المشاريع'}},
+  settings:{en:'Settings',ar:'الإعدادات',sub:{en:'Admin — API keys, PINs, configuration',ar:'مفاتيح API والإعدادات'}},
+};
+function go(id){
+  document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.style.display='';});
+  document.querySelectorAll('.nb').forEach(n=>n.classList.remove('on'));
+  const pg=document.getElementById('pg-'+id);
+  if(!pg)return;
+  pg.classList.add('on');
+  if(id==='ai')pg.style.display='flex';
+  document.querySelector(`.nb[onclick="go('${id}')"]`)?.classList.add('on');
+  const m=PG_META[id]||{en:id,ar:id,sub:{en:'',ar:''}};
+  document.getElementById('pg-title').textContent=LANG==='ar'?m.ar:m.en;
+  document.getElementById('pg-sub').textContent=LANG==='ar'?m.sub.ar:m.sub.en;
+  // Render page content
+  const renders={
+    dash:renderDash, tasks:renderTasks, myprojects:renderMyProjects,
+    noc:renderNOC, smarthub:renderSmartHub, submissions:renderSubmissions,
+    deadlines:renderDeadlines, ai:renderAIPage,
+    alltasks:renderAllTasks, team:renderTeam, allprojects:renderAllProjects,
+    reports:renderReports, settings:renderSettings,
+  };
+  renders[id]?.();
+  if(id==='ai') setTimeout(()=>{const c=document.getElementById('chat-msgs');if(c)c.scrollTop=c.scrollHeight;},80);
+}
+function toggleSB(){document.getElementById('sb').classList.toggle('slim');}
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════
+function renderDash(){
+  const u=CUR;
+  const myTasks=myT(u.id);
+  const myNocs=myN(u.id);
+  const active=myTasks.filter(t=>t.status!=='done').length;
+  const overdue=myTasks.filter(t=>t.status!=='done'&&dF(t.due)<0).length;
+  const crit=myTasks.filter(t=>t.priority==='critical'&&t.status!=='done').length;
+  const blocked=myNocs.filter(n=>n.status==='blocked').length;
+  const myPrjs=myP(u.id);
+  const el=document.getElementById('pg-dash');
+
+  el.innerHTML=`
+  <div class="stats-row">
+    <div class="stat st-b"><div class="stat-lbl">Active Tasks</div><div class="stat-val sv-b">${active}</div><div class="stat-sub">${myTasks.filter(t=>t.status==='done').length} completed</div></div>
+    <div class="stat st-r"><div class="stat-lbl">Overdue</div><div class="stat-val sv-r">${overdue}</div><div class="stat-sub">Immediate action</div></div>
+    <div class="stat st-a"><div class="stat-lbl">Critical Tasks</div><div class="stat-val sv-a">${crit}</div><div class="stat-sub">High priority</div></div>
+    <div class="stat st-p"><div class="stat-lbl">Pending NOCs</div><div class="stat-val sv-p">${myNocs.filter(n=>n.status!=='approved').length}</div><div class="stat-sub">Authority submissions</div></div>
+    <div class="stat st-g"><div class="stat-lbl">My Projects</div><div class="stat-val sv-g">${myPrjs.length}</div><div class="stat-sub">Assigned</div></div>
+  </div>
+  <div class="g2" style="margin-bottom:16px;">
+    <div id="ds-alerts" class="card"></div>
+    <div id="ds-progress" class="card"></div>
+  </div>
+  <div class="g2">
+    <div id="ds-tasks" class="card"></div>
+    <div id="ds-timeline" class="card"></div>
+  </div>`;
+
+  // Critical alerts
+  const critT=myTasks.filter(t=>(t.priority==='critical'||dF(t.due)<=0)&&t.status!=='done').slice(0,5);
+  const bNoc=myNocs.filter(n=>n.status==='blocked').slice(0,2);
+  let al=`<div class="card-title"><div class="card-icon ci-r">⚡</div>Critical Alerts</div>`;
+  if(!critT.length&&!bNoc.length) al+=`<div class="alert al-g">✅ No critical alerts.</div>`;
+  critT.forEach(t=>{const d=dF(t.due);al+=`<div class="alert ${d<0?'al-r':'al-a'}" style="margin-bottom:6px;">${d<0?'🔴':'🟡'}<div><strong>${esc(t.title)}</strong><br>${pName(proj(t.proj))} · Due ${fmtS(t.due)}</div></div>`;});
+  bNoc.forEach(n=>{al+=`<div class="alert al-r" style="margin-bottom:6px;">🚫<div><strong>${esc(n.auth)} — ${pName(proj(n.proj))}</strong><br>${esc(n.notes)}</div></div>`;});
+  document.getElementById('ds-alerts').innerHTML=al;
+
+  // Project progress
+  let pr=`<div class="card-title"><div class="card-icon ci-b">📊</div>Project NOC Progress</div>`;
+  myPrjs.forEach(p=>{
+    const pN=NOCS.filter(n=>n.proj===p.id);
+    const dN=pN.filter(n=>n.status==='approved').length;
+    const pct=pN.length?Math.round(dN/pN.length*100):0;
+    pr+=`<div style="margin-bottom:14px;cursor:pointer;" onclick="go('noc')">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+        <span style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block;"></span>${pName(p)}
+        </span>
+        <span style="font-size:11px;font-weight:700;color:${p.color};">${pct}%</span>
+      </div>
+      <div style="font-size:10px;color:var(--ink4);margin-bottom:4px;">${p.phase} · ${pN.length} NOCs</div>
+      <div class="prog"><div class="prog-f" style="width:${pct}%;background:${p.color};"></div></div>
+    </div>`;
+  });
+  if(!myPrjs.length) pr+=`<div style="color:var(--ink4);font-size:12px;">No projects assigned.</div>`;
+  document.getElementById('ds-progress').innerHTML=pr;
+
+  // Open tasks
+  const upT=myTasks.filter(t=>t.status!=='done').sort((a,b)=>new Date(a.due)-new Date(b.due)).slice(0,6);
+  let mt=`<div class="card-title"><div class="card-icon ci-b">✅</div>Open Tasks (${upT.length})</div>`;
+  upT.forEach(t=>{
+    const d=dF(t.due);
+    mt+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="go('tasks')">
+      <div class="pd ${PPAT[t.priority]}"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.title)}</div>
+        <div style="font-size:10px;color:var(--ink4);">${pName(proj(t.proj))}</div>
+      </div>
+      <span class="tag ${PTAG[t.priority]}">${t.priority}</span>
+      <span style="font-size:10px;font-weight:600;color:${d<0?'var(--red)':d<=2?'var(--amber)':'var(--ink4)'};">${fmtS(t.due)}</span>
+    </div>`;
+  });
+  if(!upT.length) mt+=`<div class="alert al-g">✅ All tasks done!</div>`;
+  document.getElementById('ds-tasks').innerHTML=mt;
+
+  // Timeline
+  const tlItems=[...myTasks.filter(t=>t.status!=='done'&&t.due),...myNocs.filter(n=>n.status!=='approved'&&n.due)]
+    .sort((a,b)=>new Date(a.due)-new Date(b.due)).slice(0,7);
+  let tl=`<div class="card-title"><div class="card-icon ci-t">📅</div>Upcoming Timeline</div><div class="tl">`;
+  tlItems.forEach(i=>{
+    const d=dF(i.due);const cls=d<0?'overdue':d===0?'warn':d<=3?'':'done';
+    const lbl=i.title||(i.auth+' NOC');
+    tl+=`<div class="tl-item"><div class="tl-dot ${cls}"></div>
+      <div class="tl-date">${fmtS(i.due)}${d===0?' · TODAY':d<0?' · '+Math.abs(d)+'d OD':''}</div>
+      <div class="tl-title">${esc(lbl)}</div>
+      <div class="tl-meta">${pName(proj(i.proj||''))}</div>
+    </div>`;
+  });
+  tl+='</div>';
+  document.getElementById('ds-timeline').innerHTML=tl;
+}
+
+// ══════════════════════════════════════════════════════
+// TASKS — Kanban
+// ══════════════════════════════════════════════════════
+function renderTasks(){
+  const u=CUR;
+  const el=document.getElementById('pg-tasks');
+  const projsForFilter = u.isAdmin?PROJECTS:myP(u.id);
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">${t('myTasks')}</div><div class="sec-sub">${u.isAdmin?'All team tasks':'Tasks assigned to you on your projects'}</div></div>
+    <div class="sec-actions">
+      <select id="kf-proj" style="width:auto;" onchange="renderKanban()">
+        <option value="">All Projects</option>
+        ${projsForFilter.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}
+      </select>
+      <select id="kf-prio" style="width:auto;" onchange="renderKanban()">
+        <option value="">All Priorities</option>
+        <option>critical</option><option>high</option><option>medium</option><option>low</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openAddTask()">${t('addTask')}</button>
+    </div>
+  </div>
+  <div class="kanban" id="kanban"></div>`;
+  renderKanban();
+}
+function renderKanban(){
+  const u=CUR;
+  const pF=document.getElementById('kf-proj')?.value||'';
+  const prF=document.getElementById('kf-prio')?.value||'';
+  let tasks=myT(u.id);
+  if(pF) tasks=tasks.filter(t=>t.proj===pF);
+  if(prF) tasks=tasks.filter(t=>t.priority===prF);
+  const el=document.getElementById('kanban');
+  if(!el)return;
+  el.innerHTML=KB_COLS.map(col=>{
+    const items=tasks.filter(t=>t.status===col.id);
+    return `<div class="kb-col">
+      <div class="kb-hd"><div class="kb-hd-dot" style="background:${col.c};"></div>${col.label}<span class="kb-ct">${items.length}</span></div>
+      <div class="kb-items">
+        ${items.map(tc).join('')}
+        ${!items.length?`<div style="padding:20px;text-align:center;font-size:11px;color:var(--ink5);">—</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function tc(task){
+  const p=proj(task.proj);const m=mbr(task.owner);const d=dF(task.due);
+  const dc=d<0?'var(--red)':d===0?'var(--amber)':d<=2?'var(--blue-md)':'var(--ink4)';
+  return `<div class="tc" onclick="openTask('${task.id}')">
+    <div class="tc-title">${esc(task.title)}</div>
+    <div class="tc-proj"><div class="tc-proj-dot" style="background:${p.color};"></div>${pName(p)}${task.auth?' · '+task.auth:''}</div>
+    <div class="tc-foot">
+      <div class="pd ${PPAT[task.priority]}"></div>
+      <span class="tag ${PTAG[task.priority]}">${task.priority}</span>
+      <div class="av" style="background:${m.color};margin-left:auto;" title="${m.name}">${m.id}</div>
+      <span style="font-size:10px;font-weight:600;color:${dc};">📅${fmtS(task.due)}</span>
+    </div>
+  </div>`;
+}
+function openTask(id){
+  const task=TASKS.find(x=>x.id===id);if(!task)return;
+  const u=CUR;const canEdit=u.isAdmin||task.owner===u.id;
+  const projs=u.isAdmin?PROJECTS:myP(u.id);
+  const owners=u.isAdmin?MEMBERS:[u];
+  if(!canEdit){
+    openModal('Task Details',`
+      <div class="alert al-b" style="margin-bottom:12px;"><strong>${esc(task.title)}</strong></div>
+      <div class="row2">
+        <div><div class="lbl">Project</div><div style="font-size:13px;">${pName(proj(task.proj))}</div></div>
+        <div><div class="lbl">Authority</div><div style="font-size:13px;">${task.auth||'—'}</div></div>
+        <div><div class="lbl">Priority</div><span class="tag ${PTAG[task.priority]}">${task.priority}</span></div>
+        <div><div class="lbl">Due Date</div><div style="font-size:13px;">${fmt(task.due)}</div></div>
+      </div>
+      <div class="fg" style="margin-top:10px;"><div class="lbl">Notes</div><div style="font-size:12px;color:var(--ink2);">${esc(task.notes)||'—'}</div></div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Close</button>`);return;
+  }
+  openModal('Edit Task',`
+    <div class="fg"><div class="lbl">Title / العنوان</div><input id="et-t" value="${esc(task.title)}"/></div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Project</div><select id="et-p">${projs.map(p=>`<option value="${p.id}" ${task.proj===p.id?'selected':''}>${pName(p)}</option>`).join('')}</select></div>
+      <div class="fg"><div class="lbl">Authority</div><select id="et-a"><option>TAQA</option><option>DMT</option><option>ADM</option><option>ADSSC</option><option>ITC</option><option>ADNOC</option><option>e&</option><option>Du</option><option>ADDC</option><option>TRANSCO</option><option>EAD</option><option>Internal</option></select></div>
+    </div>
+    <div class="row3">
+      <div class="fg"><div class="lbl">Owner</div><select id="et-o">${owners.map(m=>`<option value="${m.id}" ${task.owner===m.id?'selected':''}>${mName(m)}</option>`).join('')}</select></div>
+      <div class="fg"><div class="lbl">Priority</div><select id="et-pr"><option ${task.priority==='critical'?'selected':''}>critical</option><option ${task.priority==='high'?'selected':''}>high</option><option ${task.priority==='medium'?'selected':''}>medium</option><option ${task.priority==='low'?'selected':''}>low</option></select></div>
+      <div class="fg"><div class="lbl">Status</div><select id="et-s"><option value="todo" ${task.status==='todo'?'selected':''}>To Do</option><option value="doing" ${task.status==='doing'?'selected':''}>In Progress</option><option value="review" ${task.status==='review'?'selected':''}>In Review</option><option value="done" ${task.status==='done'?'selected':''}>Done</option></select></div>
+    </div>
+    <div class="fg"><div class="lbl">Due Date</div><input type="date" id="et-d" value="${task.due||''}"/></div>
+    <div class="fg"><div class="lbl">Notes / ملاحظات</div><textarea id="et-n">${esc(task.notes||'')}</textarea></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   ${u.isAdmin?`<button class="btn btn-danger btn-sm" onclick="delTask('${id}')">Delete</button>`:''}
+   <button class="btn btn-secondary btn-sm" onclick="closeModal();aiHelp('task','${id}')">🤖 AI Help</button>
+   <button class="btn btn-primary" onclick="saveTask('${id}')">Save</button>`);
+  document.getElementById('et-a').value=task.auth||'ADM';
+}
+function saveTask(id){
+  const task=TASKS.find(x=>x.id===id);
+  if(task){task.title=document.getElementById('et-t').value;task.proj=document.getElementById('et-p').value;task.auth=document.getElementById('et-a').value;task.owner=document.getElementById('et-o').value;task.priority=document.getElementById('et-pr').value;task.status=document.getElementById('et-s').value;task.due=document.getElementById('et-d').value;task.notes=document.getElementById('et-n').value;persist();}
+  closeModal();renderKanban();renderDash();
+}
+function delTask(id){if(!confirm('Delete task?'))return;TASKS=TASKS.filter(t=>t.id!==id);persist();closeModal();renderKanban();}
+function openAddTask(adminMode=false){
+  const u=CUR;const projs=adminMode?PROJECTS:myP(u.id);const owners=adminMode?MEMBERS:[u];
+  openModal(t('addTask'),`
+    <div class="fg"><div class="lbl">Title / العنوان</div><input id="nt-t" placeholder="e.g. Submit TAQA conflict register"/></div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Project</div><select id="nt-p">${projs.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}</select></div>
+      <div class="fg"><div class="lbl">Authority</div><select id="nt-a"><option>TAQA</option><option>DMT</option><option>ADM</option><option>ADSSC</option><option>ITC</option><option>ADNOC</option><option>e&</option><option>Du</option><option>ADDC</option><option>TRANSCO</option><option>EAD</option><option>Internal</option></select></div>
+    </div>
+    <div class="row3">
+      <div class="fg"><div class="lbl">Assign To</div><select id="nt-o">${owners.map(m=>`<option value="${m.id}">${mName(m)}</option>`).join('')}</select></div>
+      <div class="fg"><div class="lbl">Priority</div><select id="nt-pr"><option>high</option><option>medium</option><option>low</option><option>critical</option></select></div>
+      <div class="fg"><div class="lbl">Due Date</div><input type="date" id="nt-d"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Notes / ملاحظات</div><textarea id="nt-n" placeholder="Details, authority requirements, dependencies..."></textarea></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="addTask(${adminMode})">Add Task</button>`);
+}
+function addTask(adminMode){
+  const task={id:'t'+Date.now(),title:document.getElementById('nt-t').value,proj:document.getElementById('nt-p').value,auth:document.getElementById('nt-a').value,owner:document.getElementById('nt-o').value,priority:document.getElementById('nt-pr').value,due:document.getElementById('nt-d').value,notes:document.getElementById('nt-n').value,status:'todo'};
+  if(!task.title){alert('Title required.');return;}
+  TASKS.push(task);persist();closeModal();
+  if(adminMode)renderAllTasks();else renderKanban();
+  renderDash();
+}
+
+// ══════════════════════════════════════════════════════
+// MY PROJECTS
+// ══════════════════════════════════════════════════════
+function renderMyProjects(){
+  const u=CUR;const prjs=myP(u.id);
+  const el=document.getElementById('pg-myprojects');
+  if(!prjs.length){el.innerHTML=`<div class="alert al-b">No projects assigned. Contact Mutaz (Admin) to assign projects.</div>`;return;}
+  el.innerHTML=`<div class="sec-hdr"><div><div class="sec-title">${t('myProjects')}</div><div class="sec-sub">Projects assigned to you</div></div></div>
+  <div class="g2">${prjs.map(p=>{
+    const pTasks=TASKS.filter(t=>t.proj===p.id&&t.owner===u.id&&t.status!=='done');
+    const pNocs=NOCS.filter(n=>n.proj===p.id);
+    const pct=pNocs.length?Math.round(pNocs.filter(n=>n.status==='approved').length/pNocs.length*100):0;
+    const shared=MEMBERS.filter(m=>m.id!==u.id&&p.members.includes(m.id));
+    return `<div class="card" style="border-top:3px solid ${p.color};">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;">
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:3px;">${pName(p)}</div>
+          <div style="font-size:11px;color:var(--ink4);">${p.client} · ${p.phase}</div>
+          <div style="font-size:11px;color:var(--ink4);margin-top:2px;">${p.desc||''}</div>
+        </div>
+      </div>
+      <div class="g3" style="margin-bottom:12px;gap:8px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:var(--blue);">${pTasks.length}</div>
+          <div style="font-size:9px;color:var(--ink4);">My Tasks</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:${p.color};">${pct}%</div>
+          <div style="font-size:9px;color:var(--ink4);">NOC Progress</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:var(--amber);">${pNocs.filter(n=>n.status!=='approved').length}</div>
+          <div style="font-size:9px;color:var(--ink4);">Pending NOCs</div>
+        </div>
+      </div>
+      ${shared.length?`<div style="font-size:11px;color:var(--ink4);margin-bottom:10px;">Shared with: ${shared.map(m=>`<span style="color:${m.color};font-weight:600;">${mName(m)}</span>`).join(', ')}</div>`:''}
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="go('noc')">NOC Status</button>
+        <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="go('smarthub')">SmartHub</button>
+        <button class="btn btn-primary btn-sm" onclick="aiHelp('project','${p.id}')">🤖 AI Brief</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// NOC TRACKER
+// ══════════════════════════════════════════════════════
+function renderNOC(){
+  const u=CUR;const el=document.getElementById('pg-noc');
+  const nocs=myN(u.id);const byP={};
+  nocs.forEach(n=>{if(!byP[n.proj])byP[n.proj]=[];byP[n.proj].push(n);});
+  let html=`<div class="sec-hdr">
+    <div><div class="sec-title">${t('noc')}</div><div class="sec-sub">Authority NOC submissions — ${nocs.length} total, ${nocs.filter(n=>n.status!=='approved').length} pending</div></div>
+    <div class="sec-actions">
+      <button class="btn btn-primary btn-sm" onclick="openAddNOC()">+ Add NOC</button>
+    </div>
+  </div>`;
+
+  Object.entries(byP).forEach(([pid,ns])=>{
+    const p=proj(pid);
+    html+=`<div style="margin-bottom:24px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${p.color};"></span>${pName(p)}
+        <span class="tag tg" style="font-size:9px;">${ns.length} NOCs</span>
+        <span class="tag tg-g">${ns.filter(n=>n.status==='approved').length} ✓</span>
+        ${ns.filter(n=>n.status==='blocked').length?`<span class="tag tg-r">${ns.filter(n=>n.status==='blocked').length} BLOCKED</span>`:''}
+      </div>`;
+    ns.forEach(n=>{
+      const m=mbr(n.owner);const d=n.due?dF(n.due):null;const canEdit=u.isAdmin||n.owner===u.id;
+      html+=`<div class="noc-card">
+        <div class="noc-card-hd" onclick="toggleNOC('nb-${n.id}')">
+          <div class="pd ${n.status==='blocked'?'pd-r':n.status==='approved'?'pd-g':n.status==='in-progress'?'pd-b':'pd-a'}"></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;">${esc(n.auth)}</div>
+            <div style="font-size:10px;color:var(--ink4);">Ref: ${n.ref||'—'} · Owner: ${m.name}${n.submitted?' · Submitted: '+fmtS(n.submitted):''}</div>
+          </div>
+          <span class="tag ${NST[n.status]||'tg'}">${NSL(n.status)}</span>
+          ${d!==null?`<span style="font-size:10px;font-weight:600;color:${d<0?'var(--red)':d<=3?'var(--amber)':'var(--ink4)'};">📅${d<0?Math.abs(d)+'d OD':fmtS(n.due)}</span>`:''}
+          <span style="color:var(--ink4);font-size:11px;">▾</span>
+        </div>
+        <div class="noc-card-body" id="nb-${n.id}">
+          <div class="g2" style="margin-bottom:10px;">
+            <div><div class="lbl">Notes</div><div style="font-size:12px;">${esc(n.notes)}</div></div>
+            <div>
+              <div class="lbl">Quick Actions</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${canEdit?`<button class="btn btn-secondary btn-xs" onclick="editNOC('${n.id}')">✏ Edit</button>`:''}
+                <button class="btn btn-secondary btn-xs" onclick="aiHelp('noc','${n.id}')">🤖 AI Advice</button>
+                <button class="btn btn-secondary btn-xs" onclick="aiDraftEmail('${n.id}')">✉ Draft Email</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  if(!Object.keys(byP).length) html+=`<div class="alert al-b">No NOCs for your projects.</div>`;
+  el.innerHTML=html;
+}
+function toggleNOC(id){const el=document.getElementById(id);if(el)el.classList.toggle('open');}
+function editNOC(id){
+  const n=NOCS.find(x=>x.id===id);if(!n)return;
+  openModal(`Edit NOC — ${n.auth}`,`
+    <div class="fg"><div class="lbl">Status</div><select id="en-s"><option value="not-started" ${n.status==='not-started'?'selected':''}>Not Started</option><option value="pending" ${n.status==='pending'?'selected':''}>Pending</option><option value="in-progress" ${n.status==='in-progress'?'selected':''}>In Progress</option><option value="approved" ${n.status==='approved'?'selected':''}>Approved</option><option value="blocked" ${n.status==='blocked'?'selected':''}>Blocked</option><option value="approved_conditions" ${n.status==='approved_conditions'?'selected':''}>Approved w/ Conditions</option></select></div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Reference #</div><input id="en-r" value="${esc(n.ref||'')}"/></div>
+      <div class="fg"><div class="lbl">Due Date</div><input type="date" id="en-d" value="${n.due||''}"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Submission Date</div><input type="date" id="en-sub" value="${n.submitted||''}"/></div>
+    <div class="fg"><div class="lbl">Notes / ملاحظات</div><textarea id="en-n">${esc(n.notes||'')}</textarea></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="saveNOC('${id}')">Save</button>`);
+}
+function saveNOC(id){
+  const n=NOCS.find(x=>x.id===id);
+  if(n){n.status=document.getElementById('en-s').value;n.ref=document.getElementById('en-r').value;n.due=document.getElementById('en-d').value;n.submitted=document.getElementById('en-sub').value||null;n.notes=document.getElementById('en-n').value;persist();}
+  closeModal();renderNOC();renderDash();
+}
+function openAddNOC(){
+  const u=CUR;const projs=u.isAdmin?PROJECTS:myP(u.id);
+  openModal('Add NOC Entry',`
+    <div class="row2">
+      <div class="fg"><div class="lbl">Project</div><select id="nn-p">${projs.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}</select></div>
+      <div class="fg"><div class="lbl">Authority</div><select id="nn-a"><option>TAQA</option><option>TAQA/ADDC</option><option>DMT</option><option>ADM/IDAS</option><option>ADSSC</option><option>ITC</option><option>ADNOC</option><option>e&</option><option>Du</option><option>TRANSCO</option><option>EAD</option><option>GHQ</option><option>Tadweer</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Reference #</div><input id="nn-r" placeholder="e.g. TAQA-PRJ-2026-001"/></div>
+      <div class="fg"><div class="lbl">Due Date</div><input type="date" id="nn-d"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Assigned To</div><select id="nn-o">${MEMBERS.map(m=>`<option value="${m.id}" ${m.id===u.id?'selected':''}>${mName(m)}</option>`).join('')}</select></div>
+    <div class="fg"><div class="lbl">Notes</div><textarea id="nn-n"></textarea></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="addNOC()">Add NOC</button>`);
+}
+function addNOC(){
+  NOCS.push({id:'n'+Date.now(),proj:document.getElementById('nn-p').value,auth:document.getElementById('nn-a').value,status:'not-started',ref:document.getElementById('nn-r').value,submitted:null,due:document.getElementById('nn-d').value,owner:document.getElementById('nn-o').value,notes:document.getElementById('nn-n').value});
+  persist();closeModal();renderNOC();renderDash();
+}
+
+// ══════════════════════════════════════════════════════
+// SMARTHUB — ADM DESIGN STAGE APPROVALS
+// ══════════════════════════════════════════════════════
+function renderSmartHub(){
+  const u=CUR;const el=document.getElementById('pg-smarthub');
+  const prjs=myP(u.id);
+  let html=`<div class="sec-hdr">
+    <div><div class="sec-title">${t('smarthub')}</div><div class="sec-sub">ADM SmartHub design stage approvals per discipline — upload reports for AI analysis</div></div>
+  </div>`;
+
+  prjs.forEach(p=>{
+    const sh=SMARTHUB[p.id];
+    if(!sh)return;
+    html+=`<div style="margin-bottom:28px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${p.color};display:inline-block;"></span>
+        ${pName(p)} <span class="tag tg-b">${sh.currentStage}</span>
+      </div>`;
+
+    sh.stages.forEach(stage=>{
+      const discs=sh.disciplines[stage]||[];
+      const approved=discs.filter(d=>d.status==='approved').length;
+      const total=discs.length;
+      const pct=total?Math.round(approved/total*100):0;
+      const isCurrent=stage===sh.currentStage;
+      html+=`<div class="stage-panel">
+        <div class="stage-hd" onclick="toggleStage('sst-${p.id}-${stage}')">
+          <div style="width:28px;height:28px;border-radius:50%;background:${isCurrent?p.color:'var(--border)'}22;border:2px solid ${isCurrent?p.color:'var(--border)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${isCurrent?p.color:'var(--ink4)'};flex-shrink:0;">${stage.charAt(0)}</div>
+          <div class="stage-title">${stage} Stage ${isCurrent?'<span class="tag tg-b" style="font-size:9px;">Current</span>':''}</div>
+          <div style="font-size:12px;color:var(--ink4);margin-right:12px;">${approved}/${total} disciplines approved · ${pct}%</div>
+          <div class="prog" style="width:80px;"><div class="prog-f" style="width:${pct}%;background:${pct===100?'var(--green)':p.color};"></div></div>
+          ${u.isAdmin?`<button class="btn btn-secondary btn-xs" style="margin-left:8px;" onclick="event.stopPropagation();addDisc('${p.id}','${stage}')">+ Discipline</button>`:''}
+          <span style="color:var(--ink4);font-size:11px;margin-left:8px;">▾</span>
+        </div>
+        <div class="stage-body" id="sst-${p.id}-${stage}">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Discipline</th><th>Status</th><th>Date</th><th>Comments</th><th>Actions</th></tr></thead>
+              <tbody>
+                ${discs.map((d,i)=>`<tr>
+                  <td><strong>${esc(d.name)}</strong></td>
+                  <td><select class="disc-status-sel" style="width:auto;padding:4px 8px;font-size:11px;" onchange="updateDiscStatus('${p.id}','${stage}',${i},this.value)">
+                    ${['approved','approved_conditions','in-progress','pending','not-submitted','blocked'].map(s=>`<option value="${s}" ${d.status===s?'selected':''}>${NSL(s)}</option>`).join('')}
+                  </select></td>
+                  <td style="font-size:11px;">${d.date?fmtS(d.date):'—'}</td>
+                  <td><input style="padding:4px 7px;font-size:11px;min-width:160px;" value="${esc(d.comment||'')}" onblur="updateDiscComment('${p.id}','${stage}',${i},this.value)" placeholder="Add comment..."/></td>
+                  <td>
+                    <button class="btn btn-secondary btn-xs" onclick="aiDiscAdvice('${p.id}','${stage}',${i})">🤖</button>
+                    ${u.isAdmin?`<button class="btn btn-danger btn-xs" onclick="delDisc('${p.id}','${stage}',${i})">✕</button>`:''}
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="dropzone" style="flex:1;min-width:200px;padding:14px 20px;" onclick="uploadSmartHub('${p.id}','${stage}')">
+              <div style="font-size:11px;color:var(--ink3);">📎 Upload SmartHub Report PDF → AI Analysis</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="aiSmartHubBrief('${p.id}','${stage}')">🤖 AI Stage Analysis</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  if(!prjs.length) html+=`<div class="alert al-b">No projects assigned.</div>`;
+  el.innerHTML=html;
+}
+function toggleStage(id){const el=document.getElementById(id);if(el)el.classList.toggle('open');}
+function updateDiscStatus(pid,stage,idx,val){
+  if(!SMARTHUB[pid]?.disciplines[stage])return;
+  SMARTHUB[pid].disciplines[stage][idx].status=val;
+  SMARTHUB[pid].disciplines[stage][idx].date=val==='approved'||val==='approved_conditions'?new Date().toISOString().split('T')[0]:null;
+  persist();
+}
+function updateDiscComment(pid,stage,idx,val){
+  if(!SMARTHUB[pid]?.disciplines[stage])return;
+  SMARTHUB[pid].disciplines[stage][idx].comment=val;persist();
+}
+function addDisc(pid,stage){
+  openModal(`Add Discipline — ${stage} Stage`,`
+    <div class="fg"><div class="lbl">Discipline Name</div><input id="ad-n" placeholder="e.g. Structural Engineering"/></div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Status</div><select id="ad-s"><option value="not-submitted">Not Submitted</option><option value="pending">Pending</option><option value="in-progress">In Progress</option><option value="approved">Approved</option></select></div>
+      <div class="fg"><div class="lbl">Approval Date</div><input type="date" id="ad-d"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Comments</div><input id="ad-c"/></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="saveDisc('${pid}','${stage}')">Add</button>`);
+}
+function saveDisc(pid,stage){
+  if(!SMARTHUB[pid])SMARTHUB[pid]={stages:[stage],currentStage:stage,disciplines:{[stage]:[]}};
+  if(!SMARTHUB[pid].disciplines[stage])SMARTHUB[pid].disciplines[stage]=[];
+  SMARTHUB[pid].disciplines[stage].push({name:document.getElementById('ad-n').value,status:document.getElementById('ad-s').value,date:document.getElementById('ad-d').value||null,comment:document.getElementById('ad-c').value});
+  persist();closeModal();renderSmartHub();
+}
+function delDisc(pid,stage,idx){
+  if(!confirm('Remove discipline?'))return;
+  SMARTHUB[pid].disciplines[stage].splice(idx,1);persist();renderSmartHub();
+}
+function uploadSmartHub(pid,stage){
+  // Trigger file input for PDF upload → AI analysis
+  const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,.png,.jpg';
+  inp.onchange=e=>{const f=e.target.files[0];if(f)analyzeSmartHubReport(f,pid,stage);};
+  inp.click();
+}
+async function analyzeSmartHubReport(file,pid,stage){
+  const p=proj(pid);
+  showModal(`Analyzing ${stage} Report — ${pName(p)}`,`<div style="display:flex;gap:10px;align-items:center;padding:20px;"><div class="spin"></div><span>AI analyzing SmartHub report for ${stage} stage comments...</span></div>`,'');
+  const base64=await toBase64(file);
+  const prompt=`You are reviewing an ADM SmartHub design stage report for ${pName(p)} — ${stage} stage.
+Analyze the uploaded document and provide:
+1. Summary of all comments/conditions raised by ADM
+2. For each comment: authority, discipline, criticality (Critical/Major/Minor/Info), exact condition/requirement, suggested response, expected timeline to resolve
+3. Overall stage status assessment
+4. Recommended actions for the project team
+Format clearly with sections. Be specific about Abu Dhabi ADM requirements.`;
+  await callGroqVision(base64,file.type,prompt,(reply)=>{
+    showModal(`SmartHub AI Analysis — ${stage} Stage`,`
+      <div style="font-size:12px;color:var(--ink4);margin-bottom:12px;">File: ${esc(file.name)} · ${pName(p)}</div>
+      <div style="max-height:400px;overflow-y:auto;">${fmtAI(reply)}</div>`,
+    `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
+     <button class="btn btn-primary" onclick="aiCreateTasksFromAnalysis('${pid}','${stage}')">📋 Create Tasks from Analysis</button>`);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// SUBMISSIONS (all authority submissions incl. TPD, DMT, Route NOC)
+// ══════════════════════════════════════════════════════
+function renderSubmissions(){
+  const u=CUR;const el=document.getElementById('pg-submissions');
+  const prjs=myP(u.id);
+  let html=`<div class="sec-hdr">
+    <div><div class="sec-title">${t('submissions')}</div><div class="sec-sub">TPD, DMT, Route NOC, and all authority submissions</div></div>
+    <div class="sec-actions">
+      <button class="btn btn-primary btn-sm" onclick="openAddRouteNOC()">+ Route NOC</button>
+    </div>
+  </div>`;
+
+  prjs.forEach(p=>{
+    html+=`<div style="margin-bottom:28px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${p.color};display:inline-block;"></span>${pName(p)}
+      </div>`;
+
+    // TPD
+    const tpd=TPD[p.id]||{};
+    html+=`<div class="stage-panel">
+      <div class="stage-hd" onclick="toggleStage('tpd-${p.id}')">
+        <div class="card-icon ci-p">📐</div>
+        <div class="stage-title">TPD (Traffic & Roads Division) <span class="tag tg-p" style="font-size:9px;">3 Categories</span></div>
+        <span style="color:var(--ink4);font-size:11px;">▾</span>
+      </div>
+      <div class="stage-body" id="tpd-${p.id}">
+        <div class="tbl-wrap">
+          <table><thead><tr><th>Category</th><th>Status</th><th>Reference</th><th>Date</th><th>Notes</th><th>Actions</th></tr></thead>
+          <tbody>${['boreholes','roads','corridors'].map(cat=>{
+            const d=tpd[cat]||{status:'not-started',ref:'—',date:null,notes:''};
+            return `<tr>
+              <td><strong>${cat.charAt(0).toUpperCase()+cat.slice(1)}</strong></td>
+              <td><select style="width:auto;padding:4px 8px;font-size:11px;" onchange="updateTPD('${p.id}','${cat}','status',this.value)">
+                ${['not-started','pending','in-progress','approved','blocked'].map(s=>`<option value="${s}" ${d.status===s?'selected':''}>${NSL(s)}</option>`).join('')}
+              </select></td>
+              <td><input style="padding:4px 7px;font-size:11px;width:120px;" value="${esc(d.ref||'')}" onblur="updateTPD('${p.id}','${cat}','ref',this.value)"/></td>
+              <td style="font-size:11px;">${d.date?fmtS(d.date):'—'}</td>
+              <td><input style="padding:4px 7px;font-size:11px;min-width:150px;" value="${esc(d.notes||'')}" onblur="updateTPD('${p.id}','${cat}','notes',this.value)"/></td>
+              <td><button class="btn btn-secondary btn-xs" onclick="aiHelp('tpd','${p.id}:${cat}')">🤖</button></td>
+            </tr>`;
+          }).join('')}</tbody></table>
+        </div>
+      </div>
+    </div>`;
+
+    // Route NOC per utility
+    const rnocs=(ROUTE_NOC[p.id]||[]);
+    html+=`<div class="stage-panel">
+      <div class="stage-hd" onclick="toggleStage('rn-${p.id}')">
+        <div class="card-icon ci-o">🔌</div>
+        <div class="stage-title">Route NOC per Utility
+          <span class="tag tg-g" style="font-size:9px;">${rnocs.filter(n=>n.status==='approved').length}✓</span>
+          <span class="tag tg-a" style="font-size:9px;">${rnocs.filter(n=>n.status!=='approved').length} pending</span>
+        </div>
+        <button class="btn btn-secondary btn-xs" style="margin-left:auto;" onclick="event.stopPropagation();openAddRouteNOC('${p.id}')">+ Add</button>
+        <span style="color:var(--ink4);font-size:11px;margin-left:8px;">▾</span>
+      </div>
+      <div class="stage-body" id="rn-${p.id}">
+        <div class="tbl-wrap">
+          <table><thead><tr><th>Utility</th><th>Type</th><th>Status</th><th>Reference</th><th>Submitted</th><th>Due</th><th>Notes</th><th>AI</th></tr></thead>
+          <tbody>${rnocs.map(n=>{
+            const d=n.due?dF(n.due):null;
+            return `<tr>
+              <td><strong>${esc(n.utility)}</strong></td>
+              <td><span class="tag tg">${n.type}</span></td>
+              <td><span class="tag ${NST[n.status]||'tg'}">${NSL(n.status)}</span></td>
+              <td style="font-size:11px;font-family:'IBM Plex Mono',monospace;">${n.ref}</td>
+              <td style="font-size:11px;">${n.submitted?fmtS(n.submitted):'—'}</td>
+              <td style="font-size:11px;color:${d!==null&&d<0?'var(--red)':d!==null&&d<=3?'var(--amber)':'var(--ink4)'};">${n.due?fmtS(n.due):'—'}</td>
+              <td style="font-size:11px;">${esc(n.notes)}</td>
+              <td>
+                <button class="btn btn-secondary btn-xs" onclick="editRouteNOC('${n.id}')">✏</button>
+                <button class="btn btn-secondary btn-xs" onclick="aiHelp('routenoc','${n.id}')">🤖</button>
+              </td>
+            </tr>`;
+          }).join('')}
+          ${!rnocs.length?`<tr><td colspan="8" style="text-align:center;color:var(--ink5);padding:20px;">No Route NOCs added yet</td></tr>`:''}
+          </tbody></table>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;">
+          <div class="dropzone" style="flex:1;padding:12px 16px;" onclick="uploadNOCReport('${p.id}')">
+            <div style="font-size:11px;color:var(--ink3);">📎 Upload eNOC Report PDF → AI auto-populates statuses & creates tasks</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="aiHelp('routenocall','${p.id}')">🤖 Analyze All</button>
+        </div>
+      </div>
+    </div>`;
+
+    html+='</div>';
+  });
+
+  if(!prjs.length) html+=`<div class="alert al-b">No projects assigned.</div>`;
+  el.innerHTML=html;
+}
+function updateTPD(pid,cat,field,val){
+  if(!TPD[pid])TPD[pid]={};
+  if(!TPD[pid][cat])TPD[pid][cat]={status:'not-started',ref:'—',date:null,notes:''};
+  TPD[pid][cat][field]=val;
+  if(field==='status'&&(val==='approved'))TPD[pid][cat].date=new Date().toISOString().split('T')[0];
+  persist();
+}
+function openAddRouteNOC(pid=''){
+  const projs=CUR.isAdmin?PROJECTS:myP(CUR.id);
+  openModal('Add Route NOC',`
+    <div class="row2">
+      <div class="fg"><div class="lbl">Project</div><select id="rn-p">${projs.map(p=>`<option value="${p.id}" ${p.id===pid?'selected':''}>${pName(p)}</option>`).join('')}</select></div>
+      <div class="fg"><div class="lbl">Utility</div><select id="rn-u"><option>TAQA/ADDC Power</option><option>ITC Telecom</option><option>e& (Etisalat)</option><option>Du Telecom</option><option>ADSSC Sewer</option><option>ADNOC Pipeline</option><option>TRANSCO Grid</option><option>Dubai Supply Authority</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Reference #</div><input id="rn-r" placeholder="e.g. TAQA-PRJ-RT-01"/></div>
+      <div class="fg"><div class="lbl">Due Date</div><input type="date" id="rn-d"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Status</div><select id="rn-s"><option value="not-started">Not Started</option><option value="pending">Pending</option><option value="in-progress">In Progress</option><option value="approved">Approved</option><option value="blocked">Blocked</option></select></div>
+    <div class="fg"><div class="lbl">Notes</div><textarea id="rn-n"></textarea></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="addRouteNOC()">Add</button>`);
+}
+function addRouteNOC(){
+  const pid=document.getElementById('rn-p').value;
+  if(!ROUTE_NOC[pid])ROUTE_NOC[pid]=[];
+  ROUTE_NOC[pid].push({id:'rn'+Date.now(),utility:document.getElementById('rn-u').value,type:'Route NOC',status:document.getElementById('rn-s').value,ref:document.getElementById('rn-r').value,submitted:null,due:document.getElementById('rn-d').value,notes:document.getElementById('rn-n').value});
+  persist();closeModal();renderSubmissions();
+}
+function editRouteNOC(id){
+  let found=null,foundPid=null;
+  Object.entries(ROUTE_NOC).forEach(([pid,arr])=>{const n=arr.find(x=>x.id===id);if(n){found=n;foundPid=pid;}});
+  if(!found)return;
+  openModal(`Edit Route NOC — ${found.utility}`,`
+    <div class="fg"><div class="lbl">Status</div><select id="ern-s"><option value="not-started" ${found.status==='not-started'?'selected':''}>Not Started</option><option value="pending" ${found.status==='pending'?'selected':''}>Pending</option><option value="in-progress" ${found.status==='in-progress'?'selected':''}>In Progress</option><option value="approved" ${found.status==='approved'?'selected':''}>Approved</option><option value="blocked" ${found.status==='blocked'?'selected':''}>Blocked</option></select></div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Reference #</div><input id="ern-r" value="${esc(found.ref||'')}"/></div>
+      <div class="fg"><div class="lbl">Due Date</div><input type="date" id="ern-d" value="${found.due||''}"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Submission Date</div><input type="date" id="ern-sub" value="${found.submitted||''}"/></div>
+    <div class="fg"><div class="lbl">Notes</div><textarea id="ern-n">${esc(found.notes||'')}</textarea></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="saveRouteNOC('${id}')">Save</button>`);
+}
+function saveRouteNOC(id){
+  Object.values(ROUTE_NOC).forEach(arr=>{const n=arr.find(x=>x.id===id);if(n){n.status=document.getElementById('ern-s').value;n.ref=document.getElementById('ern-r').value;n.due=document.getElementById('ern-d').value;n.submitted=document.getElementById('ern-sub').value||null;n.notes=document.getElementById('ern-n').value;}});
+  persist();closeModal();renderSubmissions();
+}
+async function uploadNOCReport(pid){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.pdf';
+  inp.onchange=async e=>{
+    const f=e.target.files[0];if(!f)return;
+    showModal('Analyzing eNOC Report',`<div style="display:flex;gap:10px;align-items:center;padding:20px;"><div class="spin"></div><span>AI reading eNOC report and extracting NOC statuses...</span></div>`,'');
+    const base64=await toBase64(f);
+    const p=proj(pid);
+    const prompt=`Analyze this eNOC report PDF for ${pName(p)} project. Extract:
+1. Project name and transaction ID
+2. All authority entities and their current status (In Progress / Approved / New)
+3. For each "New" or "In Progress" authority: exact action required, documents needed, Abu Dhabi standard references
+4. Any comments or conditions already raised
+5. Suggested tasks to create for the project team (assign to PM: Mutaz, Design Coord: Aya, or Coordinators: Nour/Anoud)
+Format as structured list. Be specific.`;
+    await callGroqVision(base64,'application/pdf',prompt,(reply)=>{
+      showModal('eNOC AI Analysis Complete',`
+        <div style="font-size:12px;color:var(--ink4);margin-bottom:10px;">File: ${esc(f.name)} · ${pName(p)}</div>
+        <div style="max-height:420px;overflow-y:auto;">${fmtAI(reply)}</div>`,
+      `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
+       <button class="btn btn-primary" onclick="aiCreateTasksFromNOC('${pid}')">📋 Auto-Create Tasks</button>`);
+    });
+  };
+  inp.click();
+}
+
+// ══════════════════════════════════════════════════════
+// DEADLINES
+// ══════════════════════════════════════════════════════
+function renderDeadlines(){
+  const u=CUR;const el=document.getElementById('pg-deadlines');
+  const all=[
+    ...myT(u.id).filter(t=>t.status!=='done'&&t.due).map(i=>({lbl:i.title,proj:i.proj,type:'Task',owner:i.owner,due:i.due,prio:i.priority})),
+    ...myN(u.id).filter(n=>n.status!=='approved'&&n.due).map(i=>({lbl:i.auth+' NOC',proj:i.proj,type:'NOC',owner:i.owner,due:i.due,prio:i.status==='blocked'?'critical':i.status==='in-progress'?'high':'medium'})),
+    ...myP(u.id).flatMap(p=>(ROUTE_NOC[p.id]||[]).filter(n=>n.status!=='approved'&&n.due).map(i=>({lbl:i.utility+' Route NOC',proj:p.id,type:'Route NOC',owner:u.id,due:i.due,prio:'medium'}))),
+  ].sort((a,b)=>new Date(a.due)-new Date(b.due));
+
+  const sec=(lbl,items,c)=>{
+    if(!items.length)return'';
+    return `<div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;color:${c};margin-bottom:10px;">${lbl} (${items.length})</div>
+      <div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Project</th><th>Type</th><th>Owner</th><th>Due</th><th>Priority</th><th>AI</th></tr></thead>
+      <tbody>${items.map(i=>{const m=mbr(i.owner);const d=dF(i.due);return `<tr>
+        <td><strong>${esc(i.lbl)}</strong></td>
+        <td><span style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:${proj(i.proj).color};"></span>${pName(proj(i.proj))}</span></td>
+        <td><span class="tag tg">${i.type}</span></td>
+        <td><div style="display:flex;align-items:center;gap:5px;"><div class="av" style="background:${m.color};">${m.id}</div>${mName(m).split(' ')[0]}</div></td>
+        <td style="font-weight:600;color:${d<0?'var(--red)':d===0?'var(--amber)':'var(--ink4)'};">${fmtS(i.due)}${d<0?' ('+Math.abs(d)+'d OD)':d===0?' (Today)':''}</td>
+        <td><span class="tag ${PTAG[i.prio]||'tg'}">${i.prio}</span></td>
+        <td><button class="btn btn-secondary btn-xs" onclick="aiHelp('deadline','${esc(i.lbl)}')">🤖</button></td>
+      </tr>`;}).join('')}</tbody></table></div></div>`;
+  };
+  const ov=all.filter(i=>dF(i.due)<0);
+  const tod=all.filter(i=>dF(i.due)===0);
+  const wk=all.filter(i=>dF(i.due)>0&&dF(i.due)<=7);
+  const lt=all.filter(i=>dF(i.due)>7);
+  el.innerHTML=`<div class="sec-hdr"><div><div class="sec-title">${t('deadlines')}</div><div class="sec-sub">${all.length} total · ${ov.length} overdue</div></div></div>`+
+    sec('🔴 Overdue',ov,'var(--red)')+sec('🟡 Today',tod,'var(--amber)')+sec('🔵 This Week',wk,'var(--blue)')+sec('📅 Later',lt,'var(--ink4)')||`<div class="alert al-g">✅ No deadlines.</div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// ADMIN — ALL TASKS
+// ══════════════════════════════════════════════════════
+function renderAllTasks(){
+  const el=document.getElementById('pg-alltasks');
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">${t('allTasks')} <span class="admin-lock">🔒 Admin</span></div><div class="sec-sub">All tasks across all team members and projects</div></div>
+    <div class="sec-actions">
+      <select id="atf-p" style="width:auto;" onchange="renderAllKanban()"><option value="">All Projects</option>${PROJECTS.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}</select>
+      <select id="atf-o" style="width:auto;" onchange="renderAllKanban()"><option value="">All Members</option>${MEMBERS.map(m=>`<option value="${m.id}">${mName(m)}</option>`).join('')}</select>
+      <button class="btn btn-primary btn-sm" onclick="openAddTask(true)">${t('addTask')}</button>
+    </div>
+  </div>
+  <div class="kanban" id="all-kanban"></div>`;
+  renderAllKanban();
+}
+function renderAllKanban(){
+  const pF=document.getElementById('atf-p')?.value||'';
+  const oF=document.getElementById('atf-o')?.value||'';
+  let tasks=TASKS;
+  if(pF)tasks=tasks.filter(t=>t.proj===pF);
+  if(oF)tasks=tasks.filter(t=>t.owner===oF);
+  const el=document.getElementById('all-kanban');if(!el)return;
+  el.innerHTML=KB_COLS.map(col=>{
+    const items=tasks.filter(t=>t.status===col.id);
+    return `<div class="kb-col"><div class="kb-hd"><div class="kb-hd-dot" style="background:${col.c};"></div>${col.label}<span class="kb-ct">${items.length}</span></div>
+    <div class="kb-items">${items.map(tc).join('')}${!items.length?`<div style="padding:20px;text-align:center;font-size:11px;color:var(--ink5);">—</div>`:''}</div></div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// ADMIN — TEAM MANAGEMENT
+// ══════════════════════════════════════════════════════
+function renderTeam(){
+  const el=document.getElementById('pg-team');
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">${t('team')} <span class="admin-lock">🔒 Admin</span></div><div class="sec-sub">Add members, change PINs, assign projects — all changes go through you</div></div>
+    <button class="btn btn-primary btn-sm" onclick="openAddMember()">${t('addMember')}</button>
+  </div>
+  <div class="alert al-b" style="margin-bottom:16px;">
+    💡 <strong>How it works:</strong> Each team member logs in with their PIN on the login screen. They only see tasks and projects assigned to them. You (Admin) control all assignments from here.
+  </div>
+  <div class="g3" id="team-cards"></div>`;
+  const tc2=document.getElementById('team-cards');
+  if(!tc2)return;
+  tc2.innerHTML=MEMBERS.map(m=>{
+    const mTasks=TASKS.filter(t=>t.owner===m.id&&t.status!=='done');
+    const mProjs=PROJECTS.filter(p=>p.members.includes(m.id));
+    const overdue=mTasks.filter(t=>dF(t.due)<0).length;
+    return `<div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <div style="width:44px;height:44px;border-radius:12px;background:${m.color};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#fff;flex-shrink:0;">${m.id}</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:700;">${mName(m)}</div>
+          <div style="font-size:11px;color:var(--ink4);">${LANG==='ar'?(m.roleAr||m.role):m.role}</div>
+        </div>
+        <span class="tag ${m.isAdmin?'tg-b':'tg'}">${m.isAdmin?'Admin':'Member'}</span>
+      </div>
+      <div class="g2" style="margin-bottom:14px;gap:8px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:var(--blue);">${mTasks.length}</div>
+          <div style="font-size:9px;color:var(--ink4);">Active Tasks</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:${overdue>0?'var(--red)':'var(--green)'};">${overdue}</div>
+          <div style="font-size:9px;color:var(--ink4);">Overdue</div>
+        </div>
+      </div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-bottom:7px;">Assigned Projects (${mProjs.length})</div>
+      ${mProjs.map(p=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:${p.color};flex-shrink:0;"></span>${pName(p)}</div>`).join('')||`<div style="font-size:11px;color:var(--ink4);">No projects assigned</div>`}
+      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openEditMember('${m.id}')">✏ Edit / PIN</button>
+        <button class="btn btn-primary btn-sm" style="flex:1;" onclick="openAssign('${m.id}')">🏗 Assign Projects</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openAddMember(){
+  openModal(t('addMember'),`
+    <div class="alert al-b" style="margin-bottom:12px;">💡 New member will appear on the login screen. They log in with their PIN.</div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Full Name</div><input id="am-n" placeholder="Sara Ahmed"/></div>
+      <div class="fg"><div class="lbl">Short ID (2-3 chars)</div><input id="am-id" placeholder="SA" maxlength="3" oninput="this.value=this.value.toUpperCase()"/></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Name (Arabic) اختياري</div><input id="am-nar" placeholder="سارة أحمد"/></div>
+      <div class="fg"><div class="lbl">Role / Title</div><input id="am-r" placeholder="Civil Engineer"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Role (Arabic) اختياري</div><input id="am-rar" placeholder="مهندس مدني"/></div>
+    <div class="fg"><div class="lbl">PIN (4 digits) — member will use this to log in</div><input type="password" id="am-p" maxlength="4" placeholder="••••"/></div>
+    <div class="fg"><div class="lbl">Profile Color</div><div class="swatch-row">${SWATCHES.map((c,i)=>`<div class="swatch ${i===0?'sel':''}" style="background:${c};" onclick="selSw(this,'${c}','am-col')"></div>`).join('')}</div><input type="hidden" id="am-col" value="${SWATCHES[0]}"/></div>
+    <div class="fg"><div class="lbl">Assign to Projects (optional)</div>
+      ${PROJECTS.map(p=>`<div class="cb-item" onclick="toggleCB('amcb-${p.id}')"><div class="cb-box" id="amcb-${p.id}"></div><div><div class="cb-lbl">${pName(p)}</div><div class="cb-sub">${p.client}</div></div></div>`).join('')}
+    </div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="addMember()">Add Member</button>`);
+}
+function addMember(){
+  const id=document.getElementById('am-id').value.trim().toUpperCase();
+  const name=document.getElementById('am-n').value.trim();
+  const pin=document.getElementById('am-p').value.trim();
+  if(!id||!name||!pin||pin.length!==4){alert('Name, ID and 4-digit PIN required.');return;}
+  if(MEMBERS.find(m=>m.id===id)){alert('ID already exists.');return;}
+  const color=document.getElementById('am-col').value;
+  MEMBERS.push({id,name,nameAr:document.getElementById('am-nar').value||name,role:document.getElementById('am-r').value,roleAr:document.getElementById('am-rar').value||document.getElementById('am-r').value,pin,isAdmin:false,color});
+  // Assign selected projects
+  PROJECTS.forEach(p=>{const cb=document.getElementById('amcb-'+p.id);if(cb?.classList.contains('on')&&!p.members.includes(id))p.members.push(id);});
+  persist();closeModal();renderTeam();buildLoginGrid();
+}
+function openEditMember(id){
+  const m=MEMBERS.find(x=>x.id===id);if(!m)return;
+  openModal(`Edit — ${m.name}`,`
+    <div class="row2">
+      <div class="fg"><div class="lbl">Name</div><input id="em-n" value="${esc(m.name)}"/></div>
+      <div class="fg"><div class="lbl">Name (Arabic)</div><input id="em-nar" value="${esc(m.nameAr||'')}"/></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Role</div><input id="em-r" value="${esc(m.role)}"/></div>
+      <div class="fg"><div class="lbl">Role (Arabic)</div><input id="em-rar" value="${esc(m.roleAr||'')}"/></div>
+    </div>
+    <div class="fg"><div class="lbl">New PIN (4 digits — leave blank to keep current)</div><input type="password" id="em-p" maxlength="4" placeholder="Leave blank to keep current"/></div>
+    <div class="fg"><div class="lbl">Profile Color</div><div class="swatch-row">${SWATCHES.map(c=>`<div class="swatch ${m.color===c?'sel':''}" style="background:${c};" onclick="selSw(this,'${c}','em-col')"></div>`).join('')}</div><input type="hidden" id="em-col" value="${m.color}"/></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   ${!m.isAdmin?`<button class="btn btn-danger btn-sm" onclick="deleteMember('${id}')">Remove</button>`:''}
+   <button class="btn btn-primary" onclick="saveMember('${id}')">Save</button>`);
+}
+function saveMember(id){
+  const m=MEMBERS.find(x=>x.id===id);
+  if(m){m.name=document.getElementById('em-n').value;m.nameAr=document.getElementById('em-nar').value||m.name;m.role=document.getElementById('em-r').value;m.roleAr=document.getElementById('em-rar').value||m.role;const np=document.getElementById('em-p').value;if(np&&np.length===4)m.pin=np;m.color=document.getElementById('em-col').value;persist();}
+  closeModal();renderTeam();buildLoginGrid();
+}
+function deleteMember(id){
+  if(!confirm('Remove this team member?'))return;
+  MEMBERS=MEMBERS.filter(m=>m.id!==id);PROJECTS.forEach(p=>{p.members=p.members.filter(mid=>mid!==id);});persist();closeModal();renderTeam();buildLoginGrid();
+}
+function openAssign(uid){
+  const m=MEMBERS.find(x=>x.id===uid);
+  openModal(`Assign Projects — ${mName(m)}`,`
+    <div style="font-size:12px;color:var(--ink4);margin-bottom:14px;">Tick all projects for ${mName(m)}. Shared projects show to all assigned members.</div>
+    ${PROJECTS.map(p=>`<div class="cb-item" onclick="toggleCB('prcb-${p.id}-${uid}','prcb-${p.id}-${uid}')">
+      <div class="cb-box ${p.members.includes(uid)?'on':''}" id="prcb-${p.id}-${uid}"></div>
+      <div style="flex:1;"><div class="cb-lbl">${pName(p)}</div><div class="cb-sub">${p.client} · ${p.phase}</div></div>
+      <span style="width:10px;height:10px;border-radius:50%;background:${p.color};"></span>
+    </div>`).join('')}`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="saveAssign('${uid}')">Save Assignments</button>`);
+}
+function saveAssign(uid){
+  PROJECTS.forEach(p=>{
+    const cb=document.getElementById(`prcb-${p.id}-${uid}`);
+    if(!cb)return;
+    const on=cb.classList.contains('on');
+    if(on&&!p.members.includes(uid))p.members.push(uid);
+    else if(!on)p.members=p.members.filter(m=>m!==uid);
+  });
+  persist();closeModal();renderTeam();
+}
+
+// ══════════════════════════════════════════════════════
+// ADMIN — ALL PROJECTS
+// ══════════════════════════════════════════════════════
+function renderAllProjects(){
+  const el=document.getElementById('pg-allprojects');
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">${t('allProjects')} <span class="admin-lock">🔒 Admin</span></div><div class="sec-sub">Create and manage all projects, assign team members</div></div>
+    <button class="btn btn-primary btn-sm" onclick="openAddProject()">${t('addProject')}</button>
+  </div>
+  ${PROJECTS.map(p=>{
+    const pTasks=TASKS.filter(t=>t.proj===p.id);
+    const pNocs=NOCS.filter(n=>n.proj===p.id);
+    const assigned=MEMBERS.filter(m=>p.members.includes(m.id));
+    return `<div class="card" style="margin-bottom:12px;border-left:4px solid ${p.color};">
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:3px;">${pName(p)}</div>
+          <div style="font-size:11px;color:var(--ink4);">${p.client} · ${p.phase} · ${p.desc||''}</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-sm" onclick="openEditProject('${p.id}')">✏ Edit</button>
+          <button class="btn btn-primary btn-sm" onclick="openAssignByProject('${p.id}')">👥 Members</button>
+        </div>
+      </div>
+      <div class="g4" style="margin-bottom:12px;gap:8px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--blue);">${pTasks.filter(t=>t.status!=='done').length}</div><div style="font-size:9px;color:var(--ink4);">Active Tasks</div></div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--amber);">${pNocs.filter(n=>n.status!=='approved').length}</div><div style="font-size:9px;color:var(--ink4);">Pending NOCs</div></div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:${p.color};">${assigned.length}</div><div style="font-size:9px;color:var(--ink4);">Members</div></div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--red);">${pTasks.filter(t=>t.priority==='critical'&&t.status!=='done').length}</div><div style="font-size:9px;color:var(--ink4);">Critical</div></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${assigned.map(m=>`<div style="display:flex;align-items:center;gap:5px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 5px;">
+          <div class="av" style="background:${m.color};">${m.id}</div><span style="font-size:11px;">${mName(m)}</span>
+        </div>`).join('')}
+        ${!assigned.length?`<span style="font-size:11px;color:var(--ink4);">No members assigned</span>`:''}
+      </div>
+    </div>`;
+  }).join('')}`;
+}
+function openAddProject(){
+  openModal(t('addProject'),`
+    <div class="row2">
+      <div class="fg"><div class="lbl">Project Name (English)</div><input id="ap-n" placeholder="Al Reef Infrastructure Phase 2"/></div>
+      <div class="fg"><div class="lbl">Project Name (Arabic)</div><input id="ap-nar" placeholder="البنية التحتية..."/></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Client</div><input id="ap-c" placeholder="Aldar Properties / ADM"/></div>
+      <div class="fg"><div class="lbl">Phase</div><select id="ap-ph"><option>Concept Design</option><option>Preliminary Design</option><option selected>Detailed Design</option><option>IFC</option><option>Design Handover</option><option>Construction</option></select></div>
+    </div>
+    <div class="fg"><div class="lbl">Description</div><textarea id="ap-d" placeholder="Brief scope description..."></textarea></div>
+    <div class="fg"><div class="lbl">Color</div><div class="swatch-row">${SWATCHES.map((c,i)=>`<div class="swatch ${i===0?'sel':''}" style="background:${c};" onclick="selSw(this,'${c}','ap-col')"></div>`).join('')}</div><input type="hidden" id="ap-col" value="${SWATCHES[0]}"/></div>
+    <div class="fg"><div class="lbl">Assign Team Members</div>
+      ${MEMBERS.map(m=>`<div class="cb-item" onclick="toggleCB('apcb-${m.id}')"><div class="cb-box ${m.isAdmin?'on':''}" id="apcb-${m.id}"></div><div><div class="cb-lbl">${mName(m)}</div><div class="cb-sub">${m.role}</div></div></div>`).join('')}
+    </div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="addProject()">Create Project</button>`);
+}
+function addProject(){
+  const name=document.getElementById('ap-n').value.trim();
+  if(!name){alert('Project name required.');return;}
+  const pid='p'+Date.now();
+  const members=MEMBERS.filter(m=>{const cb=document.getElementById('apcb-'+m.id);return cb?.classList.contains('on');}).map(m=>m.id);
+  if(!members.includes('MH'))members.unshift('MH');
+  PROJECTS.push({id:pid,name,nameAr:document.getElementById('ap-nar').value||name,client:document.getElementById('ap-c').value,phase:document.getElementById('ap-ph').value,color:document.getElementById('ap-col').value,members,desc:document.getElementById('ap-d').value});
+  // Initialize SmartHub and TPD
+  SMARTHUB[pid]={stages:['Concept','Preliminary','Detailed'],currentStage:'Concept',disciplines:{Concept:[],Preliminary:[],Detailed:[]}};
+  TPD[pid]={boreholes:{status:'not-started',ref:'—',date:null,notes:''},roads:{status:'not-started',ref:'—',date:null,notes:''},corridors:{status:'not-started',ref:'—',date:null,notes:''}};
+  ROUTE_NOC[pid]=[];
+  persist();closeModal();renderAllProjects();buildProjectFilters();
+}
+function openEditProject(id){
+  const p=PROJECTS.find(x=>x.id===id);if(!p)return;
+  openModal(`Edit — ${p.name}`,`
+    <div class="row2">
+      <div class="fg"><div class="lbl">Name (English)</div><input id="epr-n" value="${esc(p.name)}"/></div>
+      <div class="fg"><div class="lbl">Name (Arabic)</div><input id="epr-nar" value="${esc(p.nameAr||'')}"/></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><div class="lbl">Client</div><input id="epr-c" value="${esc(p.client)}"/></div>
+      <div class="fg"><div class="lbl">Phase</div><select id="epr-ph"><option ${p.phase.includes('Concept')?'selected':''}>Concept Design</option><option ${p.phase.includes('Prelim')?'selected':''}>Preliminary Design</option><option ${p.phase.includes('Detailed')?'selected':''}>Detailed Design</option><option ${p.phase.includes('IFC')?'selected':''}>IFC</option><option ${p.phase.includes('Handover')?'selected':''}>Design Handover</option><option ${p.phase.includes('Construction')?'selected':''}>Construction</option></select></div>
+    </div>
+    <div class="fg"><div class="lbl">Description</div><textarea id="epr-d">${esc(p.desc||'')}</textarea></div>
+    <div class="fg"><div class="lbl">Color</div><div class="swatch-row">${SWATCHES.map(c=>`<div class="swatch ${p.color===c?'sel':''}" style="background:${c};" onclick="selSw(this,'${c}','epr-col')"></div>`).join('')}</div><input type="hidden" id="epr-col" value="${p.color}"/></div>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-danger btn-sm" onclick="delProject('${id}')">Delete</button>
+   <button class="btn btn-primary" onclick="saveProject('${id}')">Save</button>`);
+}
+function saveProject(id){
+  const p=PROJECTS.find(x=>x.id===id);
+  if(p){p.name=document.getElementById('epr-n').value;p.nameAr=document.getElementById('epr-nar').value||p.name;p.client=document.getElementById('epr-c').value;p.phase=document.getElementById('epr-ph').value;p.desc=document.getElementById('epr-d').value;p.color=document.getElementById('epr-col').value;persist();}
+  closeModal();renderAllProjects();
+}
+function delProject(id){if(!confirm('Delete project?'))return;PROJECTS=PROJECTS.filter(p=>p.id!==id);persist();closeModal();renderAllProjects();}
+function openAssignByProject(pid){
+  const p=PROJECTS.find(x=>x.id===pid);
+  openModal(`Team — ${pName(p)}`,`
+    <div style="font-size:12px;color:var(--ink4);margin-bottom:12px;">Assign/remove team members from this project.</div>
+    ${MEMBERS.map(m=>`<div class="cb-item" onclick="toggleCBAssign('${pid}','${m.id}')">
+      <div class="cb-box ${p.members.includes(m.id)?'on':''}" id="pjcb-${pid}-${m.id}"></div>
+      <div class="av" style="background:${m.color};">${m.id}</div>
+      <div><div class="cb-lbl">${mName(m)}</div><div class="cb-sub">${m.role}</div></div>
+    </div>`).join('')}`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="saveProjMembers('${pid}')">Save</button>`);
+}
+function toggleCBAssign(pid,uid){
+  const p=PROJECTS.find(x=>x.id===pid);if(!p)return;
+  const cb=document.getElementById(`pjcb-${pid}-${uid}`);if(!cb)return;
+  if(p.members.includes(uid)){p.members=p.members.filter(m=>m!==uid);cb.classList.remove('on');}
+  else{p.members.push(uid);cb.classList.add('on');}
+}
+function saveProjMembers(pid){persist();closeModal();renderAllProjects();}
+function buildProjectFilters(){
+  const u=CUR;if(!u)return;
+  const prjs=u.isAdmin?PROJECTS:myP(u.id);
+  ['kf-proj','atf-p'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">All Projects</option>'+prjs.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('');});
+  const atfo=document.getElementById('atf-o');if(atfo)atfo.innerHTML='<option value="">All Members</option>'+MEMBERS.map(m=>`<option value="${m.id}">${mName(m)}</option>`).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// REPORTS
+// ══════════════════════════════════════════════════════
+function renderReports(){
+  const el=document.getElementById('pg-reports');
+  const totalTasks=TASKS.length,doneTasks=TASKS.filter(t=>t.status==='done').length;
+  const totalNOCs=NOCS.length,doneNOCs=NOCS.filter(n=>n.status==='approved').length;
+  const overdueTasks=TASKS.filter(t=>t.status!=='done'&&dF(t.due)<0).length;
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">${t('reports')} <span class="admin-lock">🔒 Admin</span></div></div>
+    <button class="btn btn-primary btn-sm" onclick="aiGenerateReport()">🤖 Generate AI Weekly Report</button>
+  </div>
+  <div class="stats-row" style="margin-bottom:20px;">
+    <div class="stat st-b"><div class="stat-lbl">Total Tasks</div><div class="stat-val sv-b">${totalTasks}</div><div class="stat-sub">${doneTasks} done (${Math.round(doneTasks/totalTasks*100)||0}%)</div></div>
+    <div class="stat st-g"><div class="stat-lbl">NOCs Approved</div><div class="stat-val sv-g">${doneNOCs}</div><div class="stat-sub">of ${totalNOCs} total</div></div>
+    <div class="stat st-r"><div class="stat-lbl">Overdue</div><div class="stat-val sv-r">${overdueTasks}</div><div class="stat-sub">tasks past due date</div></div>
+    <div class="stat st-a"><div class="stat-lbl">Critical Open</div><div class="stat-val sv-a">${TASKS.filter(t=>t.priority==='critical'&&t.status!=='done').length}</div><div class="stat-sub">high priority tasks</div></div>
+    <div class="stat st-p"><div class="stat-lbl">Blocked NOCs</div><div class="stat-val sv-p">${NOCS.filter(n=>n.status==='blocked').length}</div><div class="stat-sub">need escalation</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title"><div class="card-icon ci-b">📊</div>Team Workload</div>
+      ${MEMBERS.map(m=>{
+        const mt=TASKS.filter(t=>t.owner===m.id&&t.status!=='done');
+        const pct=TASKS.length?Math.round(mt.length/TASKS.filter(t=>t.status!=='done').length*100)||0:0;
+        return `<div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+              <div class="av" style="background:${m.color};">${m.id}</div>${mName(m)}
+            </span>
+            <span style="font-size:11px;font-weight:700;color:${m.color};">${mt.length} tasks</span>
+          </div>
+          <div class="prog"><div class="prog-f" style="width:${Math.min(pct,100)}%;background:${m.color};"></div></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-icon ci-g">🏗️</div>Project NOC Summary</div>
+      ${PROJECTS.map(p=>{
+        const pN=NOCS.filter(n=>n.proj===p.id);
+        const dn=pN.filter(n=>n.status==='approved').length;
+        const pct=pN.length?Math.round(dn/pN.length*100):0;
+        return `<div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${p.color};"></span>${pName(p)}</span>
+            <span style="font-size:11px;font-weight:700;color:${p.color};">${pct}%</span>
+          </div>
+          <div class="prog"><div class="prog-f" style="width:${pct}%;background:${p.color};"></div></div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div id="ai-report-area" style="margin-top:16px;"></div>`;
+}
+async function aiGenerateReport(){
+  const el=document.getElementById('ai-report-area');
+  el.innerHTML=`<div class="card"><div style="display:flex;gap:10px;align-items:center;"><div class="spin"></div><span>Generating AI weekly report...</span></div></div>`;
+  const prompt=`Generate a professional weekly PM report for CDM Smith Abu Dhabi infrastructure team.
+
+Projects: ${PROJECTS.map(p=>pName(p)).join(', ')}
+Tasks: ${TASKS.filter(t=>t.status!=='done').length} open, ${TASKS.filter(t=>t.priority==='critical'&&t.status!=='done').length} critical, ${TASKS.filter(t=>dF(t.due)<0&&t.status!=='done').length} overdue
+NOCs: ${NOCS.filter(n=>n.status!=='approved').length} pending, ${NOCS.filter(n=>n.status==='blocked').length} blocked
+Team: ${MEMBERS.map(m=>mName(m)+' ('+TASKS.filter(t=>t.owner===m.id&&t.status!=='done').length+' tasks)').join(', ')}
+
+Include: Executive Summary, Critical Issues, Team Performance, NOC Status, Next Week Priorities, Risks. Professional PM report style.`;
+  const reply=await groqChat(prompt);
+  el.innerHTML=`<div class="card"><div class="card-title"><div class="card-icon ci-b">📈</div>AI Weekly Report — ${new Date().toLocaleDateString('en-GB')}</div><div style="font-size:13px;line-height:1.7;">${fmtAI(reply)}</div></div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════
+function renderSettings(){
+  const el=document.getElementById('pg-settings');
+  el.innerHTML=`
+  <div class="sec-hdr"><div><div class="sec-title">${t('settings')} <span class="admin-lock">🔒 Admin</span></div></div></div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title"><div class="card-icon ci-b">🤖</div>Groq AI Configuration (Free)</div>
+      <div class="alert al-b" style="margin-bottom:12px;">💡 Groq is completely free. Get your key at <strong>console.groq.com</strong> → API Keys → Create Free.</div>
+      <div class="fg"><div class="lbl">Groq API Key</div><input type="password" id="groq-key-in" placeholder="gsk_..." value="${GROQ_KEY||''}"/><div class="form-hint">Starts with gsk_ · Stored only in this browser</div></div>
+      <button class="btn btn-primary" onclick="saveGroq()">Save API Key</button>
+      <div id="groq-test-result" style="margin-top:10px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-icon ci-p">🔐</div>Change Admin PIN</div>
+      <div class="alert al-b" style="margin-bottom:12px;">Your current PIN is used to log in as Admin. Change it here.</div>
+      <div class="fg"><div class="lbl">New PIN (4 digits)</div><input type="password" id="np1" maxlength="4" placeholder="••••"/></div>
+      <div class="fg"><div class="lbl">Confirm New PIN</div><input type="password" id="np2" maxlength="4" placeholder="••••"/></div>
+      <button class="btn btn-primary" onclick="changePin()">Change PIN</button>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-icon ci-a">🔄</div>Data Management</div>
+      <div style="font-size:12px;color:var(--ink4);margin-bottom:12px;">All data is saved in this browser's local storage. Export to backup.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="exportData()">📥 Export Data (JSON)</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()">📤 Import Data</button>
+        <button class="btn btn-danger btn-sm" onclick="resetData()">⚠ Reset to Defaults</button>
+      </div>
+      <input type="file" id="import-file" style="display:none;" accept=".json" onchange="importData(event)"/>
+    </div>
+  </div>`;
+}
+function saveGroq(){
+  const k=document.getElementById('groq-key-in').value.trim();
+  if(k&&!k.startsWith('gsk_')){alert('Groq keys start with gsk_...');return;}
+  GROQ_KEY=k;S.set('groq',k);updateGroqStatus();
+  document.getElementById('groq-test-result').innerHTML=k?`<div class="alert al-g">✅ Key saved. AI features active.</div>`:`<div class="alert al-a">⚠ Key cleared. Demo mode active.</div>`;
+}
+function changePin(){
+  const p1=document.getElementById('np1').value,p2=document.getElementById('np2').value;
+  if(p1!==p2||p1.length!==4){alert('PINs must match and be 4 digits.');return;}
+  const admin=MEMBERS.find(m=>m.isAdmin);if(admin){admin.pin=p1;persist();}
+  alert('Admin PIN changed.');
+}
+function exportData(){
+  const data={MEMBERS,PROJECTS,TASKS,NOCS,SMARTHUB,TPD,ROUTE_NOC};
+  const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='TeamFlow-backup-'+new Date().toISOString().split('T')[0]+'.json';a.click();
+}
+function importData(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.MEMBERS)MEMBERS=d.MEMBERS;if(d.PROJECTS)PROJECTS=d.PROJECTS;if(d.TASKS)TASKS=d.TASKS;if(d.NOCS)NOCS=d.NOCS;if(d.SMARTHUB)SMARTHUB=d.SMARTHUB;if(d.TPD)TPD=d.TPD;if(d.ROUTE_NOC)ROUTE_NOC=d.ROUTE_NOC;persist();alert('Data imported. Refreshing...');window.location.reload();}catch{alert('Invalid file.');}};r.readAsText(f);
+}
+function resetData(){
+  if(!confirm('Reset ALL data to defaults? This cannot be undone.'))return;
+  ['members','projects','tasks','nocs','smarthub','tpd','routenoc'].forEach(k=>localStorage.removeItem('tf3_'+k));
+  window.location.reload();
+}
+
+// ══════════════════════════════════════════════════════
+// AI ASSISTANT — GROQ
+// ══════════════════════════════════════════════════════
+const AI_SYS=`You are TeamFlow AI, an expert Abu Dhabi infrastructure project manager assistant for CDM Smith Inc. Abu Dhabi.
+
+EXPERTISE:
+- Abu Dhabi authorities: TAQA/ADDC (1.2m cable cover, concrete encasement, 45° crossings), DMT eNOC portal (Form DMT-01, cycle track standards), ADSSC (hydraulic design, Manning's equation), ADM/IDAS (A1 drawings, DTF forms, 14-day RFI), ITC (UCDM ROW-602, 4×100mm HDPE ducts), ADNOC (pipeline proximity, 90° crossings), e&/Du/Etisalat, TRANSCO, EAD, GHQ, DCT, Tadweer
+- ADM SmartHub: design stage submission process (Concept → Preliminary → Detailed), discipline approval workflows, comment resolution
+- TPD (Traffic & Roads Division): boreholes, roads, utility corridors
+- UCDM (Utility Corridor Design Manual): vertical sequencing, horizontal separations, ROW standards
+- Route NOC procedures per utility authority
+- Professional email drafting (English/Arabic context)
+- Value engineering and cost optimization
+
+TEAM: Mutaz Hammad (PM/Admin), Aya (Design Coordinator - IDAS), Nour (Coordinator), Anoud (Coordinator)
+PROJECTS: Al Shamkha City Infrastructure, HSCT ADNEC Segment, Al Daoon Road Development, TIP-01663/01735
+
+Be specific, direct, and actionable. Reference exact standards, form numbers, portal names.`;
+
+function renderAIPage(){
+  const el=document.getElementById('pg-ai');
+  if(el.style.display!=='flex')return;
+  if(document.getElementById('chat-msgs').children.length===0) initChat();
+}
+function initChat(){
+  const el=document.getElementById('chat-msgs');
+  const u=CUR;const myPrjs=myP(u.id);
+  el.innerHTML=`<div class="cm"><div class="cm-av ai-av">🤖</div><div class="cm-bub">
+    <div class="cm-who">TeamFlow AI · Groq · Free</div>
+    <div class="cm-txt">
+      <p>Welcome ${mName(u)}! I'm your free AI project manager — powered by Groq (Llama 3.3 70B, zero cost).</p>
+      <p>Your projects: <strong>${myPrjs.map(p=>pName(p)).join(', ')||'None assigned'}</strong></p>
+      <p>I can help with:</p>
+      <ul>
+        <li><strong>Task planning</strong> — generate action plans per team member</li>
+        <li><strong>NOC procedures</strong> — exact steps for any Abu Dhabi authority</li>
+        <li><strong>SmartHub analysis</strong> — interpret ADM comments and suggest responses</li>
+        <li><strong>Email drafts</strong> — formal authority coordination letters</li>
+        <li><strong>Engineering advice</strong> — UCDM standards, utility conflicts, value engineering</li>
+      </ul>
+      <p>${GROQ_KEY?'<strong>✅ Groq AI active</strong> — full intelligence enabled.':'⚠️ <strong>Demo mode</strong> — '+(u.isAdmin?'add your Groq key in Settings for full AI.':'Ask Mutaz (Admin) to add the Groq key in Settings.')}</p>
+    </div>
+  </div></div>`;
+}
+function clearChat(){chatHistory=[];initChat();}
+function chatKD(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI();}}
+async function sendAI(){
+  const inp=document.getElementById('chat-in');
+  const msg=inp.value.trim();if(!msg)return;
+  inp.value='';
+  const el=document.getElementById('chat-msgs');
+  const u=CUR;
+  el.innerHTML+=`<div class="cm usr"><div class="cm-av usr-av" style="background:${u.color};">${u.id}</div><div class="cm-bub"><div class="cm-who">${mName(u)}</div><div class="cm-txt"><p>${esc(msg)}</p></div></div></div>`;
+  const tid='t'+Date.now();
+  el.innerHTML+=`<div id="${tid}" class="cm"><div class="cm-av ai-av">🤖</div><div class="cm-bub"><div class="cm-who">TeamFlow AI</div><div class="cm-txt"><div style="display:flex;gap:4px;align-items:center;"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div></div></div>`;
+  el.scrollTop=el.scrollHeight;
+  document.getElementById('send-btn').disabled=true;
+  chatHistory.push({role:'user',content:msg});
+  const reply=await groqChat(msg);
+  chatHistory.push({role:'assistant',content:reply});
+  document.getElementById(tid)?.remove();
+  el.innerHTML+=`<div class="cm"><div class="cm-av ai-av">🤖</div><div class="cm-bub"><div class="cm-who">TeamFlow AI${GROQ_KEY?'':' · Demo'}</div><div class="cm-txt">${fmtAI(reply)}</div></div></div>`;
+  el.scrollTop=el.scrollHeight;
+  document.getElementById('send-btn').disabled=false;
+}
+async function groqChat(msg){
+  if(!GROQ_KEY) return demoAI(msg);
+  try{
+    const ctx=buildCtx();
+    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+      body:JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        max_tokens:1200,temperature:.6,
+        messages:[
+          {role:'system',content:AI_SYS+'\n\nCURRENT USER: '+mName(CUR)+' ('+CUR.role+')\nCONTEXT:\n'+ctx},
+          ...chatHistory.slice(-8),
+          {role:'user',content:msg}
+        ]
+      })
+    });
+    const d=await res.json();
+    if(d.error)throw new Error(d.error.message);
+    return d.choices?.[0]?.message?.content||'No response.';
+  }catch(e){return`Error connecting to Groq: ${e.message}. Please check your API key in Settings.`;}
+}
+async function callGroqVision(base64,mimeType,prompt,cb){
+  if(!GROQ_KEY){cb('Demo mode — add Groq API key in Settings for AI document analysis.');return;}
+  // Groq vision via text description since Groq doesn't support PDF vision directly — use text extraction approach
+  const reply=await groqChat(prompt+'\n\n[Note: Document uploaded but vision not available on Groq free tier. Providing analysis based on project context and Abu Dhabi authority knowledge.]');
+  cb(reply);
+}
+function buildCtx(){
+  const u=CUR;
+  const mT=myT(u.id).filter(t=>t.status!=='done');
+  const mN=myN(u.id);
+  return `User projects: ${myP(u.id).map(p=>pName(p)).join(', ')}\nOpen tasks: ${mT.length} (${mT.filter(t=>dF(t.due)<0).length} overdue, ${mT.filter(t=>t.priority==='critical').length} critical)\nPending NOCs: ${mN.filter(n=>n.status!=='approved').length}\nBlocked: ${mN.filter(n=>n.status==='blocked').map(n=>n.auth+'/'+pName(proj(n.proj))).join(', ')||'none'}`;
+}
+function demoAI(m){
+  const ml=m.toLowerCase();
+  if(ml.includes('task')||ml.includes('action')||ml.includes('week')||ml.includes('today')){
+    const tasks=myT(CUR.id).filter(t=>t.status!=='done').sort((a,b)=>new Date(a.due)-new Date(b.due)).slice(0,5);
+    return `**Your Priority Actions:**\n\n${tasks.map(t=>`- **${t.title}** — ${pName(proj(t.proj))}, due ${fmtS(t.due)} (${t.priority})`).join('\n')}\n\nAdd Groq API key in Settings for full AI task planning and authority guidance.`;
+  }
+  if(ml.includes('taqa')||ml.includes('power')||ml.includes('cable'))return `**TAQA/ADDC NOC — Key Requirements:**\n\n- Submit UCR (Utility Conflict Register) with all HV/LV assets\n- HV cable crossings: concrete encasement, **1.2m min cover** under carriageway\n- **Crossing angle: min 45°** to cable route; yellow warning tape 300mm above\n- Submit via TAQA Client Portal + reference number\n- Follow up after 15 working days\n\nAdd Groq key for project-specific guidance.`;
+  if(ml.includes('smarthub')||ml.includes('adm')||ml.includes('idas'))return `**ADM SmartHub Submission Process:**\n\n1. Log in to ADM SmartHub portal\n2. Create new submission → select stage (Concept/Prelim/Detailed)\n3. Upload drawings: A1 format, ADM border, north arrow, scale bar, revision table\n4. Attach DTF (Document Transmittal Form)\n5. Submit per discipline — track status per drawing\n6. Respond to RFIs within **14 calendar days**\n7. Download stamped drawings upon approval\n\nAdd Groq key for AI analysis of your SmartHub reports.`;
+  if(ml.includes('email')||ml.includes('draft')||ml.includes('letter'))return `I can draft emails for any authority. Tell me:\n- **To:** (TAQA / DMT / ADM / authority name)\n- **Purpose:** (submission / follow-up / RFI response / escalation)\n- **Project:** which project?\n\nAdd Groq key for instant AI-generated professional emails.`;
+  return `TeamFlow AI is in **demo mode**. Add your free Groq API key:\n\n1. Go to **console.groq.com**\n2. Sign up (free, no credit card)\n3. API Keys → Create Free Key\n4. In TeamFlow → Settings → paste key\n\nGroq gives you access to Llama 3.3 70B — a powerful model that can answer any Abu Dhabi authority procedure question, generate action plans, draft emails, and analyze SmartHub reports.`;
+}
+
+// AI Quick Help
+async function aiHelp(type,id){
+  go('ai');
+  let msg='';
+  if(type==='task'){const t=TASKS.find(x=>x.id===id);if(t)msg=`Help me complete task: "${t.title}" for ${pName(proj(t.proj))} (${t.auth||''}). What exactly is needed, what documents, any Abu Dhabi authority specifics?`;}
+  else if(type==='noc'){const n=NOCS.find(x=>x.id===id);if(n)msg=`NOC: ${n.auth} for ${pName(proj(n.proj))} is "${n.status}". Notes: "${n.notes}". What are the exact next steps? Include specific documents, Abu Dhabi procedures, and escalation if needed.`;}
+  else if(type==='project'){const p=PROJECTS.find(x=>x.id===id);if(p)msg=`Give me a project status brief for ${pName(p)}: pending NOCs, critical tasks, risks, and recommended actions this week.`;}
+  else if(type==='tpd'){const[pid,cat]=id.split(':');const d=TPD[pid]?.[cat];if(d)msg=`TPD ${cat} for ${pName(proj(pid))}: status is "${d.status}". What steps to progress this? Any specific Abu Dhabi TPD requirements?`;}
+  else if(type==='routenoc'){let n=null;Object.values(ROUTE_NOC).forEach(arr=>{const f=arr.find(x=>x.id===id);if(f)n=f;});if(n)msg=`Route NOC for ${n.utility}: status "${n.status}". Notes: "${n.notes}". What are the next steps and specific requirements for this utility authority in Abu Dhabi?`;}
+  else if(type==='routenocall'){const p=PROJECTS.find(x=>x.id===id);const rn=ROUTE_NOC[id]||[];msg=`Analyze the Route NOC status for ${pName(p)}: ${rn.map(n=>`${n.utility}: ${n.status}`).join(', ')}. What are the priorities and recommended actions?`;}
+  else if(type==='deadline'){msg=`Deadline: "${id}" — what specific action needs to be taken, who should own it, and what are the authority requirements?`;}
+  else msg=id;
+  if(msg){setTimeout(()=>{document.getElementById('chat-in').value=msg;sendAI();},300);}
+}
+function aiDraftEmail(nocId){
+  const n=NOCS.find(x=>x.id===nocId);if(!n)return;
+  go('ai');
+  setTimeout(()=>{document.getElementById('chat-in').value=`Draft a professional coordination email to ${n.auth} for ${pName(proj(n.proj))} project. Status: "${n.status}". Notes: "${n.notes}". CDM Smith is the applicant. Formal tone, include project reference and clear call to action.`;sendAI();},300);
+}
+async function aiDiscAdvice(pid,stage,idx){
+  const d=SMARTHUB[pid]?.disciplines[stage]?.[idx];
+  if(!d)return;
+  go('ai');
+  setTimeout(()=>{document.getElementById('chat-in').value=`Discipline "${d.name}" for ${pName(proj(pid))} ${stage} stage is "${d.status}". Comment: "${d.comment||'none'}". What are the exact ADM SmartHub requirements for this discipline at ${stage} stage, and what should be submitted to resolve any comments?`;sendAI();},300);
+}
+async function aiSmartHubBrief(pid,stage){
+  go('ai');
+  const sh=SMARTHUB[pid];
+  const discs=sh?.disciplines[stage]||[];
+  const p=proj(pid);
+  setTimeout(()=>{document.getElementById('chat-in').value=`ADM SmartHub ${stage} stage analysis for ${pName(p)}:\n${discs.map(d=>`- ${d.name}: ${d.status}${d.comment?' ('+d.comment+')':''}`).join('\n')}\n\nFor each discipline not yet approved: what exactly needs to be submitted, what are the ADM/IDAS requirements, and estimate timeline to approval?`;sendAI();},300);
+}
+async function aiCreateTasksFromAnalysis(pid,stage){
+  const p=proj(pid);
+  const sh=SMARTHUB[pid];const discs=sh?.disciplines[stage]||[];
+  const pending=discs.filter(d=>d.status!=='approved');
+  pending.forEach((d,i)=>{
+    TASKS.push({id:'t'+Date.now()+i,title:`Submit ${d.name} drawings — ${pName(p)} ${stage} Stage`,proj:pid,auth:'ADM',priority:d.status==='blocked'?'critical':'high',owner:'AY',status:'todo',due:new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0],notes:`ADM SmartHub ${stage} stage: ${d.comment||'Prepare and submit drawings'}`});
+  });
+  persist();closeModal();
+  alert(`Created ${pending.length} tasks from SmartHub analysis.`);
+  renderDash();
+}
+async function aiCreateTasksFromNOC(pid){
+  const rn=ROUTE_NOC[pid]||[];
+  const pending=rn.filter(n=>n.status!=='approved');
+  pending.forEach((n,i)=>{
+    TASKS.push({id:'t'+Date.now()+i,title:`Submit ${n.utility} Route NOC — ${pName(proj(pid))}`,proj:pid,auth:n.utility.split(' ')[0],priority:'medium',owner:'MH',status:'todo',due:n.due||new Date(Date.now()+14*24*60*60*1000).toISOString().split('T')[0],notes:`Route NOC: ${n.notes||'Submit to authority'}`});
+  });
+  persist();closeModal();
+  alert(`Created ${pending.length} tasks from NOC analysis.`);
+  renderDash();
+}
+
+// ══════════════════════════════════════════════════════
+// HELPERS & UTILS
+// ══════════════════════════════════════════════════════
+function fmtAI(t){
+  t=t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/`(.*?)`/g,'<code>$1</code>');
+  const lines=t.split('\n');let h='',ul=false,ol=false;
+  lines.forEach(l=>{
+    if(/^[\-\*•] /.test(l)){if(!ul){h+='<ul>';ul=true;}h+=`<li>${l.replace(/^[\-\*•] /,'')}</li>`;}
+    else if(/^\d+\. /.test(l)){if(!ol){h+='<ol>';ol=true;}h+=`<li>${l.replace(/^\d+\. /,'')}</li>`;}
+    else{if(ul){h+='</ul>';ul=false;}if(ol){h+='</ol>';ol=false;}if(l.trim())h+=`<p>${l}</p>`;}
+  });
+  if(ul)h+='</ul>';if(ol)h+='</ol>';
+  return h||`<p>${t}</p>`;
+}
+async function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
+function selSw(el,c,inputId){document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));el.classList.add('sel');const inp=document.getElementById(inputId);if(inp)inp.value=c;}
+function toggleCB(id){const el=document.getElementById(id);if(el)el.classList.toggle('on');}
+function doSearch(q){
+  if(!q||q.length<2)return;
+  const ql=q.toLowerCase();
+  const ht=[...TASKS,...NOCS,...PROJECTS].find(x=>(x.title||x.name||x.auth||'').toLowerCase().includes(ql));
+  if(ht){if(ht.title)go('tasks');else if(ht.auth)go('noc');else go(CUR.isAdmin?'allprojects':'myprojects');}
+}
+function openModal(title,body,foot=''){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=body;
+  document.getElementById('modal-foot').innerHTML=foot;
+  document.getElementById('modal-ov').style.display='flex';
+}
+function showModal(title,body,foot){openModal(title,body,foot);}
+function closeModal(){document.getElementById('modal-ov').style.display='none';}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+buildLoginGrid();
+document.getElementById('lang-btn').textContent=LANG==='en'?'🌐 العربية':'🌐 English';
+document.documentElement.lang=LANG;
+document.documentElement.dir=LANG==='ar'?'rtl':'ltr';
+</script>
+</body>
+</html>
