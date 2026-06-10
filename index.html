@@ -423,6 +423,7 @@ td strong{color:var(--ink);}
       <div class="page" id="pg-submissions"></div>
       <div class="page" id="pg-deadlines"></div>
       <div class="page" id="pg-ai" style="display:none;"></div>
+      <div class="page" id="pg-statusreport"></div>
       <div class="page" id="pg-alltasks"></div>
       <div class="page" id="pg-team"></div>
       <div class="page" id="pg-allprojects"></div>
@@ -453,13 +454,20 @@ let SB_ENABLED = !!(SB_URL && SB_KEY);
 async function sbFetch(path, opts={}) {
   if (!SB_ENABLED) return null;
   try {
-    const r = await fetch(SB_URL + '/rest/v1/' + path, {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation', ...opts.headers },
-      ...opts
-    });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
+    // Build headers carefully — opts.headers takes precedence for Prefer overrides
+    const baseHeaders = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+    const mergedHeaders = { ...baseHeaders, ...(opts.headers||{}) };
+    const fetchOpts = { method: opts.method||'GET', headers: mergedHeaders };
+    if (opts.body) fetchOpts.body = opts.body;
+    const r = await fetch(SB_URL + '/rest/v1/' + path, fetchOpts);
+    if (!r.ok) {
+      const errText = await r.text();
+      console.warn('Supabase error:', r.status, errText);
+      return null;
+    }
+    const txt = await r.text();
+    return txt ? JSON.parse(txt) : [];
+  } catch(e) { console.warn('sbFetch error:', e.message); return null; }
 }
 
 async function dbGet(key) {
@@ -470,13 +478,26 @@ async function dbGet(key) {
 }
 
 async function dbSet(key, value) {
-  LS.set(key, value); // always save locally too
-  if (!SB_ENABLED) return;
-  await sbFetch('tf_data', {
-    method: 'POST',
-    headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
-    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
-  });
+  LS.set(key, value); // always save locally
+  if (!SB_ENABLED) return true;
+  try {
+    const r = await fetch(SB_URL + '/rest/v1/tf_data', {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + SB_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      console.warn('dbSet failed for key:', key, r.status, err);
+      return false;
+    }
+    return true;
+  } catch(e) { console.warn('dbSet error:', e.message); return false; }
 }
 
 async function dbGetAll(keys) {
@@ -485,34 +506,46 @@ async function dbGetAll(keys) {
   return results;
 }
 
-// Poll for updates every 30s
+// Poll for updates every 10 seconds for near-real-time sync
 let pollInterval = null;
 function startPolling() {
   if (pollInterval) clearInterval(pollInterval);
   if (!SB_ENABLED) return;
   pollInterval = setInterval(async () => {
     await syncFromDB();
-  }, 30000);
+  }, 10000); // 10 seconds
 }
 
 async function syncFromDB() {
   if (!SB_ENABLED || !CUR) return;
-  const keys = ['tasks','nocs','projects','members','smarthub','tpd','routenoc','notifications','ai_memory'];
-  const data = await dbGetAll(keys);
-  let changed = false;
-  if (data.tasks) { TASKS = data.tasks; changed = true; }
-  if (data.nocs) { NOCS = data.nocs; changed = true; }
-  if (data.projects) { PROJECTS = data.projects; changed = true; }
-  if (data.members) { MEMBERS = data.members; changed = true; }
-  if (data.smarthub) { SMARTHUB = data.smarthub; changed = true; }
-  if (data.tpd) { TPD = data.tpd; changed = true; }
-  if (data.routenoc) { ROUTE_NOC = data.routenoc; changed = true; }
-  if (data.notifications) { NOTIFICATIONS = data.notifications; updateNotifBadge(); }
-  if (data.ai_memory) AI_MEMORY = data.ai_memory;
-  if (changed) {
-    const pg = document.querySelector('.nb.on')?.getAttribute('onclick')?.match(/go\('(\w+)'\)/)?.[1];
-    if (pg) { const r = RENDERS[pg]; if (r) r(); }
-  }
+  try {
+    // Fetch all rows at once — more efficient than individual gets
+    const r = await fetch(SB_URL + '/rest/v1/tf_data?select=key,value', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (!r.ok) return;
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return;
+    const data = {};
+    rows.forEach(row => { data[row.key] = row.value; });
+    let changed = false;
+    if (data.tasks)    { TASKS     = data.tasks;    LS.set('tasks',    TASKS);    changed = true; }
+    if (data.nocs)     { NOCS      = data.nocs;     LS.set('nocs',     NOCS);     changed = true; }
+    if (data.projects) { PROJECTS  = data.projects; LS.set('projects', PROJECTS); changed = true; }
+    if (data.members)  { MEMBERS   = data.members;  LS.set('members',  MEMBERS);  changed = true; }
+    if (data.smarthub) { SMARTHUB  = data.smarthub; LS.set('smarthub', SMARTHUB); changed = true; }
+    if (data.tpd)      { TPD       = data.tpd;      LS.set('tpd',      TPD);      changed = true; }
+    if (data.routenoc) { ROUTE_NOC = data.routenoc; LS.set('routenoc', ROUTE_NOC); changed = true; }
+    if (data.notifications) { NOTIFICATIONS = data.notifications; LS.set('notifications', NOTIFICATIONS); updateNotifBadge(); }
+    if (data.ai_memory)     { AI_MEMORY = data.ai_memory; LS.set('ai_memory', AI_MEMORY); }
+    if (changed) {
+      const pg = document.querySelector('.nb.on')?.getAttribute('onclick')?.match(/go\('(\w+)'\)/)?.[1];
+      if (pg && RENDERS[pg]) RENDERS[pg]();
+      // Flash sync dot green briefly
+      const dot = document.getElementById('sync-dot');
+      if (dot) { dot.style.background = '#10b981'; setTimeout(()=>{ if(SB_ENABLED) dot.style.background='var(--green)'; }, 800); }
+    }
+  } catch(e) { console.warn('syncFromDB error:', e.message); }
 }
 
 // ═══════════════════════════════════════════
@@ -815,6 +848,7 @@ const PG = {
   submissions:{en:'Submissions & Route NOC',ar:'التقديمات',sub:{en:'TPD · DMT · Route NOC · All submissions',ar:'جميع التقديمات'}},
   deadlines:{en:'Deadlines',ar:'المواعيد',sub:{en:'Critical dates and overdue items',ar:'المواعيد الهامة'}},
   ai:{en:'AI Assistant',ar:'المساعد الذكي',sub:{en:'Groq · Free · Remembers your project history',ar:'Groq · مجاني · يتذكر تاريخ مشاريعك'}},
+  statusreport:{en:'Project Status Report',ar:'تقرير حالة المشروع',sub:{en:'Printable PDF — current status · pending items · key dates',ar:'تقرير قابل للطباعة'}},
   alltasks:{en:'All Tasks',ar:'جميع المهام',sub:{en:'Admin — full task view',ar:'عرض شامل للمهام'}},
   team:{en:'Team Management',ar:'إدارة الفريق',sub:{en:'Add members, assign projects, set PINs',ar:'إضافة أعضاء وتعيين مشاريع'}},
   allprojects:{en:'All Projects',ar:'جميع المشاريع',sub:{en:'Create and manage projects',ar:'إنشاء وإدارة المشاريع'}},
@@ -825,6 +859,7 @@ const RENDERS = {
   dash:renderDash, tasks:renderTasks, myprojects:renderMyProjects,
   noc:renderNOC, smarthub:renderSmartHub, submissions:renderSubmissions,
   deadlines:renderDeadlines, ai:renderAIPage,
+  statusreport:renderStatusReport,
   alltasks:renderAllTasks, team:renderTeam, allprojects:renderAllProjects,
   reports:renderReports, settings:renderSettings,
 };
@@ -844,6 +879,7 @@ function buildNav() {
   h += nb('noc','📋','NOC Tracker',pn>0?{c:'ct-b',v:pn}:null);
   h += nb('smarthub','🏛️',LANG==='ar'?'موافقات ADM':'SmartHub');
   h += nb('submissions','📤',LANG==='ar'?'التقديمات':'Submissions');
+  h += nb('statusreport','📄',LANG==='ar'?'تقرير الحالة':'Status Report');
   h += sec('AI');
   h += nb('ai','🤖',LANG==='ar'?'المساعد':'AI Assistant');
   if(u.isAdmin){
@@ -1596,6 +1632,254 @@ function renderDeadlines(){
 }
 
 // ═══════════════════════════════════════════
+// STATUS REPORT — PRINTABLE PDF
+// ═══════════════════════════════════════════
+function renderStatusReport() {
+  const u = CUR;
+  const prjs = u.isAdmin ? PROJECTS : myP(u.id);
+  const el = document.getElementById('pg-statusreport');
+  const today = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+  const allTasks = u.isAdmin ? TASKS : myT(u.id);
+  const allNocs  = u.isAdmin ? NOCS  : myN(u.id);
+
+  // Summary counts
+  const openTasks   = allTasks.filter(t => t.status !== 'done');
+  const overdueTasks = openTasks.filter(t => dF(t.due) < 0);
+  const critTasks   = openTasks.filter(t => t.priority === 'critical');
+  const pendingNocs = allNocs.filter(n => n.status !== 'approved');
+  const blockedNocs = allNocs.filter(n => n.status === 'blocked');
+
+  // Per-project data
+  const projBlocks = prjs.map(p => {
+    const pTasks = allTasks.filter(t => t.proj === p.id && t.status !== 'done');
+    const pNocs  = allNocs.filter(n => n.proj === p.id);
+    const pOD    = pTasks.filter(t => dF(t.due) < 0);
+    const pCrit  = pTasks.filter(t => t.priority === 'critical');
+    const sh     = SMARTHUB[p.id] || {};
+    const currentDiscs = sh[p.currentStage] || [];
+    const pendDiscs = currentDiscs.filter(d => d.status !== 'approved');
+    const rn = ROUTE_NOC[p.id] || [];
+    const tpd = TPD[p.id] || {};
+    const nocPct = pNocs.length ? Math.round(pNocs.filter(n=>n.status==='approved').length/pNocs.length*100) : 0;
+
+    return { p, pTasks, pNocs, pOD, pCrit, sh, currentDiscs, pendDiscs, rn, tpd, nocPct };
+  });
+
+  el.innerHTML = `
+  <div class="sec-hdr no-print">
+    <div><div class="sec-title">Project Status Report</div><div class="sec-sub">Auto-generated · ${today} · Print or save as PDF</div></div>
+    <div class="sec-acts">
+      <button class="btn btn-secondary btn-sm" onclick="renderStatusReport()">🔄 Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="printReport()">🖨 Print / Save PDF</button>
+    </div>
+  </div>
+
+  <style>
+    @media print {
+      .no-print { display:none !important; }
+      #sidebar, #topbar, #notif-panel { display:none !important; }
+      #main { width:100% !important; }
+      #content { padding:0 !important; overflow:visible !important; }
+      #pg-statusreport { display:block !important; }
+      body { overflow:visible !important; font-size:11px; }
+      html, body { height:auto !important; overflow:visible !important; }
+      .rpt-page { page-break-after: always; }
+      .rpt-proj-card { page-break-inside: avoid; }
+    }
+  </style>
+
+  <!-- REPORT CONTENT -->
+  <div id="rpt-content">
+
+    <!-- COVER / HEADER -->
+    <div class="card rpt-page" style="margin-bottom:16px;border-top:5px solid var(--blue);padding:28px 32px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <div style="font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.03em;margin-bottom:4px;">Project Status Report</div>
+          <div style="font-size:13px;color:var(--ink4);">CDM Smith Inc. · Abu Dhabi Infrastructure Division</div>
+          <div style="font-size:12px;color:var(--ink4);margin-top:2px;">Prepared by: ${mName(CUR)} · ${today}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:28px;font-weight:800;color:var(--blue);letter-spacing:-.04em;">TeamFlow</div>
+          <div style="font-size:10px;color:var(--ink5);">Automated PM Report</div>
+        </div>
+      </div>
+
+      <!-- Executive summary stats -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;">
+        ${[
+          { lbl:'Active Projects',   val:prjs.length,          c:'var(--blue)' },
+          { lbl:'Open Tasks',        val:openTasks.length,     c:'var(--ink2)' },
+          { lbl:'Overdue',           val:overdueTasks.length,  c:overdueTasks.length>0?'var(--red)':'var(--green)' },
+          { lbl:'Critical Tasks',    val:critTasks.length,     c:critTasks.length>0?'var(--amber)':'var(--green)' },
+          { lbl:'Blocked NOCs',      val:blockedNocs.length,   c:blockedNocs.length>0?'var(--red)':'var(--green)' },
+        ].map(s=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:12px;text-align:center;">
+          <div style="font-size:24px;font-weight:800;color:${s.c};">${s.val}</div>
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-top:3px;">${s.lbl}</div>
+        </div>`).join('')}
+      </div>
+
+      <!-- Critical alerts -->
+      ${critTasks.length||blockedNocs.length ? `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--red);margin-bottom:8px;">⚡ CRITICAL ITEMS REQUIRING IMMEDIATE ATTENTION</div>
+        ${critTasks.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--red-lt);border-radius:var(--r);margin-bottom:5px;border-left:3px solid var(--red);">
+          <div style="flex:1;"><strong style="font-size:12px;">${esc(t.title)}</strong> <span style="font-size:10px;color:var(--ink4);">— ${pName(prj(t.proj))} · ${mbr(t.owner).name}</span></div>
+          <span style="font-size:10px;font-weight:700;color:var(--red);">Due ${fmtS(t.due)}${dF(t.due)<0?' (OVERDUE)':''}</span>
+        </div>`).join('')}
+        ${blockedNocs.map(n=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--red-lt);border-radius:var(--r);margin-bottom:5px;border-left:3px solid var(--red);">
+          <div style="flex:1;"><strong style="font-size:12px;">🚫 BLOCKED: ${esc(n.auth)}</strong> <span style="font-size:10px;color:var(--ink4);">— ${pName(prj(n.proj))}</span></div>
+          <span style="font-size:10px;color:var(--ink3);">${esc(n.notes)}</span>
+        </div>`).join('')}
+      </div>` : `<div style="padding:10px 14px;background:var(--green-lt);border-radius:var(--r);border:1px solid #a7d7c5;font-size:12px;color:var(--green);margin-bottom:16px;">✅ No critical items at this time.</div>`}
+
+      <!-- Project NOC progress -->
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:10px;">NOC PROGRESS BY PROJECT</div>
+      ${prjs.map(p=>{
+        const pN=allNocs.filter(n=>n.proj===p.id);
+        const pct=pN.length?Math.round(pN.filter(n=>n.status==='approved').length/pN.length*100):0;
+        return `<div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:50%;background:${p.color};display:inline-block;"></span>${pName(p)}</span>
+            <span style="font-size:11px;font-weight:700;color:${p.color};">${pct}% · ${pN.filter(n=>n.status==='approved').length}/${pN.length} approved</span>
+          </div>
+          <div style="height:8px;background:var(--bg2);border-radius:4px;"><div style="height:100%;width:${pct}%;background:${p.color};border-radius:4px;"></div></div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- PER-PROJECT DETAIL CARDS -->
+    ${projBlocks.map(({ p, pTasks, pNocs, pOD, pCrit, currentDiscs, pendDiscs, rn, tpd, nocPct }) => `
+    <div class="card rpt-proj-card" style="margin-bottom:14px;border-left:5px solid ${p.color};padding:20px 24px;">
+
+      <!-- Project header -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:17px;font-weight:800;color:var(--ink);">${pName(p)}</div>
+          <div style="font-size:11px;color:var(--ink4);margin-top:2px;">${p.client} · ${p.phase} · Stage: <strong>${p.currentStage||'—'}</strong></div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink5);margin-top:3px;">TXN: ${p.txn||'—'}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+          ${[
+            {l:'Open Tasks',v:pTasks.length,c:'var(--blue)'},
+            {l:'Overdue',v:pOD.length,c:pOD.length>0?'var(--red)':'var(--green)'},
+            {l:'Critical',v:pCrit.length,c:pCrit.length>0?'var(--amber)':'var(--green)'},
+            {l:'NOC %',v:nocPct+'%',c:p.color},
+          ].map(s=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;">
+            <div style="font-size:18px;font-weight:800;color:${s.c};">${s.v}</div>
+            <div style="font-size:9px;color:var(--ink4);">${s.l}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+        <!-- NOC Status -->
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-bottom:8px;">NOC SUBMISSIONS</div>
+          ${pNocs.length ? pNocs.map(n=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+            <div class="pd ${n.status==='blocked'?'pd-r':n.status==='approved'?'pd-g':n.status==='in-progress'?'pd-b':'pd-a'}"></div>
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:600;">${esc(n.auth)}</div>
+              <div style="font-size:9px;color:var(--ink5);font-family:'IBM Plex Mono',monospace;">${n.txn||n.ref||'—'}</div>
+            </div>
+            <span class="tag ${NST[n.status]||'tg'}" style="font-size:9px;">${NSL(n.status)}</span>
+            <span style="font-size:9px;color:var(--ink4);">${n.due?fmtS(n.due):'—'}</span>
+          </div>`).join('') : '<div style="font-size:11px;color:var(--ink5);">No NOCs recorded</div>'}
+        </div>
+
+        <!-- SmartHub current stage + open tasks -->
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-bottom:8px;">SMARTHUB — ${p.currentStage||'—'} STAGE</div>
+          ${currentDiscs.length ? currentDiscs.map(d=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">
+            <div class="pd ${d.status==='approved'?'pd-g':d.status==='in-progress'?'pd-b':'pd-a'}"></div>
+            <div style="flex:1;font-size:11px;">${esc(d.name)}</div>
+            <span class="tag ${NST[d.status]||'tg'}" style="font-size:9px;">${NSL(d.status)}</span>
+          </div>`).join('') : '<div style="font-size:11px;color:var(--ink5);">No disciplines added</div>'}
+        </div>
+      </div>
+
+      <!-- Pending tasks for this project -->
+      ${pTasks.length ? `
+      <div style="margin-top:14px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-bottom:8px;">PENDING TASKS (${pTasks.length})</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead><tr>
+            <th style="text-align:left;padding:5px 8px;background:var(--bg);border:1px solid var(--border);font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ink4);">Task</th>
+            <th style="text-align:left;padding:5px 8px;background:var(--bg);border:1px solid var(--border);font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ink4);">Owner</th>
+            <th style="text-align:left;padding:5px 8px;background:var(--bg);border:1px solid var(--border);font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ink4);">Priority</th>
+            <th style="text-align:left;padding:5px 8px;background:var(--bg);border:1px solid var(--border);font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ink4);">Due</th>
+            <th style="text-align:left;padding:5px 8px;background:var(--bg);border:1px solid var(--border);font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ink4);">TXN/Ref</th>
+          </tr></thead>
+          <tbody>
+          ${pTasks.sort((a,b)=>new Date(a.due)-new Date(b.due)).map(t=>{
+            const d=dF(t.due);const m=mbr(t.owner);
+            return `<tr style="background:${t.priority==='critical'?'#fff5f5':d<0?'#fff8f0':''}">
+              <td style="padding:6px 8px;border:1px solid var(--border);"><strong>${esc(t.title)}</strong>${t.auth?`<br><span style="font-size:9px;color:var(--ink5);">${t.auth}</span>`:''}</td>
+              <td style="padding:6px 8px;border:1px solid var(--border);">${mName(m)}</td>
+              <td style="padding:6px 8px;border:1px solid var(--border);"><span class="tag ${PTAG[t.priority]}" style="font-size:9px;">${t.priority}</span></td>
+              <td style="padding:6px 8px;border:1px solid var(--border);font-weight:600;color:${d<0?'var(--red)':d<=2?'var(--amber)':'var(--ink4)'};">${fmtS(t.due)}${d<0?' ⚠':''}</td>
+              <td style="padding:6px 8px;border:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink5);">${esc(t.txn||'—')}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+
+      <!-- Route NOC summary -->
+      ${rn.length ? `
+      <div style="margin-top:14px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-bottom:8px;">ROUTE NOC STATUS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${rn.map(n=>`<div style="padding:5px 10px;border-radius:20px;font-size:10px;font-weight:600;border:1px solid var(--border);background:var(--bg);display:flex;align-items:center;gap:5px;">
+            <div class="pd ${n.status==='approved'?'pd-g':n.status==='blocked'?'pd-r':n.status==='in-progress'?'pd-b':'pd-a'}"></div>
+            ${esc(n.utility)} <span class="tag ${NST[n.status]||'tg'}" style="font-size:8px;">${NSL(n.status)}</span>
+          </div>`).join('')}
+        </div>
+      </div>` : ''}
+    </div>`).join('')}
+
+    <!-- TEAM SUMMARY -->
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><div class="ci ci-b">👥</div>Team Workload Summary</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr>
+          ${['Team Member','Role','Active Tasks','Overdue','Critical','Projects'].map(h=>`<th style="text-align:left;padding:7px 10px;background:var(--bg);border:1px solid var(--border);font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ink4);">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${MEMBERS.map(m=>{
+            const mt=allTasks.filter(t=>t.owner===m.id&&t.status!=='done');
+            const od=mt.filter(t=>dF(t.due)<0);
+            const cr=mt.filter(t=>t.priority==='critical');
+            const mp=PROJECTS.filter(p=>p.members&&p.members.includes(m.id));
+            return `<tr>
+              <td style="padding:7px 10px;border:1px solid var(--border);"><strong style="display:flex;align-items:center;gap:7px;"><span style="width:18px;height:18px;border-radius:50%;background:${m.color};display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;">${m.id}</span>${mName(m)}</strong></td>
+              <td style="padding:7px 10px;border:1px solid var(--border);font-size:10px;color:var(--ink4);">${m.role}</td>
+              <td style="padding:7px 10px;border:1px solid var(--border);font-weight:700;color:var(--blue);">${mt.length}</td>
+              <td style="padding:7px 10px;border:1px solid var(--border);font-weight:700;color:${od.length>0?'var(--red)':'var(--green)'};">${od.length}</td>
+              <td style="padding:7px 10px;border:1px solid var(--border);font-weight:700;color:${cr.length>0?'var(--amber)':'var(--green)'};">${cr.length}</td>
+              <td style="padding:7px 10px;border:1px solid var(--border);font-size:10px;">${mp.map(p=>`<span style="display:inline-flex;align-items:center;gap:3px;margin-right:4px;"><span style="width:6px;height:6px;border-radius:50%;background:${p.color};"></span>${pName(p).split(' ').slice(0,2).join(' ')}</span>`).join('')||'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="text-align:center;padding:12px;font-size:10px;color:var(--ink5);border-top:1px solid var(--border);">
+      Generated by TeamFlow PM · CDM Smith Inc. Abu Dhabi · ${today} · Prepared by ${mName(CUR)}
+    </div>
+
+  </div>`;
+}
+
+function printReport() {
+  window.print();
+}
+
+// ═══════════════════════════════════════════
 // ADMIN — ALL TASKS
 // ═══════════════════════════════════════════
 function renderAllTasks(){
@@ -2040,10 +2324,30 @@ async function groqChat(msg){
     return d.choices?.[0]?.message?.content||'No response received.';
   }catch(e){return`Error: ${e.message}. Please check your Groq API key in Settings.`;}
 }
-async function groqAnalyzeFile(file,prompt){
-  if(!GROQ_KEY)return'Demo mode — add Groq API key in Settings for AI document analysis. The AI will read the PDF and extract all authority statuses, comments, and required actions.';
-  // For text-based analysis (Groq doesn't support direct PDF vision, but we use file name context + detailed prompt)
-  return await groqChat(prompt+'\n\n[File: '+file.name+' · Size: '+(file.size/1024).toFixed(0)+'KB · Note: Provide detailed analysis based on typical Abu Dhabi eNOC/IDAS report structure and your knowledge of the project]');
+async function groqAnalyzeFile(file, prompt) {
+  if (!GROQ_KEY) return 'Demo mode — add your Groq API key in Settings to enable AI document analysis. Once added, upload any eNOC or SmartHub PDF and the AI will extract all authority statuses, comments, required actions, and auto-create tasks.';
+  try {
+    // Read file as text (works for text-based PDFs) or extract what we can
+    const fileText = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const raw = e.target.result;
+        // Extract readable text from the raw content
+        const text = raw.replace(/[^\x20-\x7E\n\r\t\u0600-\u06FF]/g, ' ')
+                        .replace(/\s{3,}/g, '\n')
+                        .substring(0, 8000); // Limit to 8000 chars
+        resolve(text);
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsText(file, 'utf-8');
+    });
+    const contentNote = fileText.trim().length > 100
+      ? `\n\nEXTRACTED FILE CONTENT (${file.name}, ${(file.size/1024).toFixed(0)}KB):\n---\n${fileText}\n---`
+      : `\n\nFile: ${file.name} (${(file.size/1024).toFixed(0)}KB)\nNote: Could not extract text from this PDF (may be scanned/image-based). Please provide analysis based on your Abu Dhabi authority knowledge and typical eNOC/IDAS report structure for ${pName(prj('p1'))} type projects.`;
+    return await groqChat(prompt + contentNote);
+  } catch(e) {
+    return await groqChat(prompt + `\n\nFile: ${file.name} — ${e.message}. Provide analysis based on typical Abu Dhabi eNOC report structure.`);
+  }
 }
 function buildCtx(){
   const u=CUR;const mT=myT(u.id).filter(t=>t.status!=='done');
