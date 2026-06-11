@@ -726,7 +726,7 @@ const SEED_ROUTE_NOC = {
 // ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
-let MEMBERS   = LS.get('members',   SEED_MEMBERS);
+let MEMBERS   = LS.get('members',   SEED_MEMBERS); // Will be refreshed after bootstrapConfig()
 let PROJECTS  = LS.get('projects',  SEED_PROJECTS);
 let TASKS     = LS.get('tasks',     SEED_TASKS);
 let NOCS      = LS.get('nocs',      SEED_NOCS);
@@ -885,6 +885,11 @@ function getAIMemoryContext() {
 // ═══════════════════════════════════════════
 let selUID = '', pinBuf = '';
 function buildLoginGrid() {
+  // Always re-read from localStorage so grid is current after any sync
+  const displayMembers = LS.get('members', MEMBERS);
+  if(displayMembers && displayMembers.length) MEMBERS = displayMembers.map(m => ({
+    ...m, pin: m.pin || ({MH:'1234',AY:'2222',NR:'3333',AN:'4444'})[m.id] || '0000'
+  }));
   document.getElementById('user-grid').innerHTML = MEMBERS.map(m => `
     <div class="ucard" id="uc-${m.id}" onclick="selUser('${m.id}')">
       <div class="uav" style="background:${m.color};">${m.id}</div>
@@ -911,19 +916,14 @@ function PD() { if(pinBuf.length)pinBuf=pinBuf.slice(0,-1); updDots(); document.
 function updDots(err=false) { for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);d.className='pdot'+(i<pinBuf.length?(err?' e':' f'):'');} }
 function PE() {
   if(!selUID){document.getElementById('lerr').textContent='Select a profile first.';return;}
-  // Always read MEMBERS fresh from localStorage right before PIN check
-  // This ensures any sync hasn't left MEMBERS variable stale
-  const freshMembers = LS.get('members', MEMBERS);
-  const m = freshMembers.find(x => x.id === selUID) || mbr(selUID);
-  if(!m.pin){
-    document.getElementById('lerr').textContent='No PIN set. Contact Mutaz (Admin).';
-    setTimeout(()=>{pinBuf='';updDots();},800);
-    return;
-  }
-  if(pinBuf===m.pin) {
-    // Update global MEMBERS with fresh copy
-    MEMBERS = freshMembers;
-    CUR = m;
+  // Find member — use MEMBERS global (guaranteed refreshed after bootstrapConfig in init)
+  const m = MEMBERS.find(x => x.id === selUID);
+  if(!m){ document.getElementById('lerr').textContent='Profile not found. Refresh the page.'; return; }
+  // If still no PIN (edge case), apply seed PIN now
+  const SEED_PINS = {MH:'1234', AY:'2222', NR:'3333', AN:'4444'};
+  const pin = m.pin || SEED_PINS[m.id] || '0000';
+  if(pinBuf === pin) {
+    CUR = {...m, pin}; // ensure CUR always has a pin
     document.getElementById('login').style.display='none';
     document.getElementById('shell').style.display='flex';
     bootApp();
@@ -2627,8 +2627,17 @@ function skipConnect() {
 
   // Run bootstrap FIRST — this syncs credentials from Supabase if team code is saved
   await bootstrapConfig();
-  // Re-read GROQ key after bootstrap (may have been pulled from Supabase)
+
+  // CRITICAL: Re-read ALL state after bootstrap — it ran async and may have
+  // written updated members/groq to localStorage after variables were declared.
   GROQ_KEY = localStorage.getItem('tf4_groq') || '';
+  const freshMembersAfterBoot = LS.get('members', null);
+  if (freshMembersAfterBoot) MEMBERS = freshMembersAfterBoot;
+
+  // Safety: guarantee every member has a PIN using seed fallbacks
+  const SEED_PINS = {MH:'1234', AY:'2222', NR:'3333', AN:'4444'};
+  MEMBERS = MEMBERS.map(m => ({ ...m, pin: m.pin || SEED_PINS[m.id] || '0000' }));
+  LS.set('members', MEMBERS);
 
   // Decide what to show: team connect screen, or straight to login
   const skipped = localStorage.getItem('tf4_tc_skipped');
