@@ -476,72 +476,54 @@ let SB_ENABLED = !!(SB_URL && SB_KEY);
 // This is what makes ALL team PCs connect automatically — no manual setup needed.
 // Admin saves config once → it goes into Supabase → every other device reads it.
 async function bootstrapConfig() {
+  // ONLY job: get SB credentials and GROQ key onto this device.
+  // NEVER touches MEMBERS or any project data.
+  
   if (SB_ENABLED) {
-    // Already configured locally — push config to Supabase so others can pull it
+    // Already have credentials — push them to Supabase for other devices
     try {
-      await fetch(SB_URL + '/rest/v1/tf_data', {
-        method: 'POST',
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ key: 'app_config', value: { sb_url: SB_URL, sb_key: SB_KEY }, updated_at: new Date().toISOString() })
-      });
+      const cfg = { sb_url: SB_URL, sb_key: SB_KEY };
+      await fetch(SB_URL + '/rest/v1/tf_data', { method:'POST', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'}, body: JSON.stringify({key:'app_config',value:cfg,updated_at:new Date().toISOString()}) });
       const gk = localStorage.getItem('tf4_groq');
-      if (gk) await fetch(SB_URL + '/rest/v1/tf_data', {
-        method: 'POST',
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ key: 'groq_config', value: { k: gk }, updated_at: new Date().toISOString() })
-      });
+      if (gk) await fetch(SB_URL + '/rest/v1/tf_data', { method:'POST', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'}, body: JSON.stringify({key:'groq_config',value:{k:gk},updated_at:new Date().toISOString()}) });
     } catch(e) {}
     return;
   }
 
-  // Not configured locally — try fetching via saved team code
+  // No credentials yet — try team code
   const tc = localStorage.getItem('tf4_team_code');
   if (!tc) return;
   try {
     const dec = JSON.parse(atob(tc));
     if (!dec.u || !dec.k) return;
-    const r = await fetch(dec.u + '/rest/v1/tf_data?key=eq.app_config&select=value', {
-      headers: { 'apikey': dec.k, 'Authorization': 'Bearer ' + dec.k }
-    });
+    // Just get app_config (credentials only)
+    const r = await fetch(dec.u + '/rest/v1/tf_data?key=eq.app_config&select=value', { headers:{'apikey':dec.k,'Authorization':'Bearer '+dec.k} });
     if (!r.ok) return;
     const rows = await r.json();
-    if (rows && rows[0]) {
-      const cfg = rows[0].value;
-      SB_URL = cfg.sb_url; SB_KEY = cfg.sb_key; SB_ENABLED = true;
+    if (rows?.[0]?.value) {
+      SB_URL = rows[0].value.sb_url;
+      SB_KEY = rows[0].value.sb_key;
+      SB_ENABLED = true;
       localStorage.setItem('tf4_sb_url', SB_URL);
       localStorage.setItem('tf4_sb_key', SB_KEY);
     }
-    // Pull Groq key
-    const gr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.groq_config&select=value', {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-    });
-    if (gr.ok) {
-      const grows = await gr.json();
-      if (grows && grows[0] && grows[0].value?.k) localStorage.setItem('tf4_groq', grows[0].value.k);
-    }
-    // Pull members WITHOUT PINs to populate login grid on new device
-    // (PINs are stored locally only — they never go to Supabase)
-    const mr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.members&select=value', {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-    });
-    if (mr.ok) {
-      const mrows = await mr.json();
-      if (mrows && mrows[0] && Array.isArray(mrows[0].value)) {
-        const dbMembers = mrows[0].value;
-        // Merge with local members (to preserve PINs if they exist locally)
-        const localMembers = JSON.parse(localStorage.getItem('tf4_members') || 'null');
-        const merged = dbMembers.map(dbM => {
-          const localM = (localMembers || []).find(lm => lm.id === dbM.id);
-          // Use local PIN if available, otherwise use seed PIN
-          const seedM = [
-            {id:'MH',pin:'1234'},{id:'AY',pin:'2222'},
-            {id:'NR',pin:'3333'},{id:'AN',pin:'4444'}
-          ].find(s => s.id === dbM.id);
-          return { ...dbM, pin: (localM?.pin) || (seedM?.pin) || '0000' };
+    // Also extract PINs from the stored team code (embedded by admin)
+    try {
+      const storedDec = JSON.parse(atob(tc));
+      if (storedDec.p) {
+        Object.entries(storedDec.p).forEach(([id,pin]) => {
+          localStorage.setItem('tf4_pin_'+id, pin);
+          MASTER_PINS[id] = pin;
         });
-        localStorage.setItem('tf4_members', JSON.stringify(merged));
       }
-    }
+    } catch(e) {}
+    // Get GROQ key
+    const gr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.groq_config&select=value', { headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY} });
+    if (gr.ok) { const grows = await gr.json(); if (grows?.[0]?.value?.k) localStorage.setItem('tf4_groq', grows[0].value.k); }
+    // Get custom PINs
+    const pr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.pins_config&select=value', { headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY} });
+    if (pr.ok) { const prows = await pr.json(); if (prows?.[0]?.value) { Object.entries(prows[0].value).forEach(([id,pin]) => { localStorage.setItem('tf4_pin_'+id, pin); MASTER_PINS[id]=pin; }); } }
+    // DO NOT fetch or save members here — that happens in syncFromDB after login
   } catch(e) { SB_ENABLED = false; }
 }
 
@@ -622,20 +604,9 @@ async function syncFromDB() {
     const data = {};
     rows.forEach(row => { data[row.key] = row.value; });
 
-    // CRITICAL: Merge members carefully — NEVER overwrite PINs from DB blindly.
-    // Always preserve local PINs so login is never broken by a bad sync.
+    // Members from Supabase have no PINs — that's fine, getPIN() handles PINs separately
     if (data.members && Array.isArray(data.members)) {
-      const localMembers = LS.get('members', null);
-      const merged = data.members.map(dbM => {
-        // Keep DB member data (name, role, color, projects) but preserve local PIN if it exists
-        const localM = (localMembers || MEMBERS).find(lm => lm.id === dbM.id);
-        return localM ? { ...dbM, pin: localM.pin } : dbM;
-      });
-      // Add any local-only members not in DB yet
-      (localMembers || MEMBERS).forEach(lm => {
-        if (!merged.find(m => m.id === lm.id)) merged.push(lm);
-      });
-      MEMBERS = merged;
+      MEMBERS = data.members;
       LS.set('members', MEMBERS);
     }
 
@@ -900,11 +871,6 @@ function getAIMemoryContext() {
 // ═══════════════════════════════════════════
 let selUID = '', pinBuf = '';
 function buildLoginGrid() {
-  // Always re-read from localStorage so grid is current after any sync
-  const displayMembers = LS.get('members', MEMBERS);
-  if(displayMembers && displayMembers.length) MEMBERS = displayMembers.map(m => ({
-    ...m, pin: m.pin || ({MH:'1234',AY:'2222',NR:'3333',AN:'4444'})[m.id] || '0000'
-  }));
   document.getElementById('user-grid').innerHTML = MEMBERS.map(m => `
     <div class="ucard" id="uc-${m.id}" onclick="selUser('${m.id}')">
       <div class="uav" style="background:${m.color};">${m.id}</div>
@@ -2421,16 +2387,13 @@ async function saveSupabase(){
   const gk=localStorage.getItem('tf4_groq');
   if(gk) await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'groq_config',value:{k:gk},updated_at:new Date().toISOString()})});
   // Generate team code so others can bootstrap
-  // Push custom PINs to Supabase so team devices can pull them
-  const customPins = {};
-  Object.keys(MASTER_PINS).forEach(id => {
-    const stored = localStorage.getItem('tf4_pin_' + id);
-    if (stored) customPins[id] = stored;
-  });
-  if (Object.keys(customPins).length > 0) {
-    await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'pins_config',value:customPins,updated_at:new Date().toISOString()})});
-  }
-  const teamCode = btoa(JSON.stringify({u:url,k:key}));
+  // Build pins map: all current members with their PINs
+  const allPins = {};
+  MEMBERS.forEach(m => { allPins[m.id] = getPIN(m.id); });
+  // Store pins in Supabase
+  await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'pins_config',value:allPins,updated_at:new Date().toISOString()})});
+  // Embed pins DIRECTLY in team code so new devices get them immediately
+  const teamCode = btoa(JSON.stringify({u:url,k:key,p:allPins}));
   localStorage.setItem('tf4_team_code',teamCode);
   updateSyncStatus();startPolling();
   document.getElementById('sb-result').innerHTML='<div class="alert al-g" style="margin-top:10px;">✅ Connected! Team code generated. Share it with your team so their devices connect automatically.</div><div class="txn-field" style="margin-top:8px;user-select:all;">'+teamCode+'</div>';
@@ -2631,21 +2594,20 @@ async function connectWithCode() {
     localStorage.setItem('tf4_sb_url', SB_URL);
     localStorage.setItem('tf4_sb_key', SB_KEY);
     localStorage.setItem('tf4_team_code', raw);
-    // Pull groq key
+    // Extract PINs directly from team code (embedded by admin when generating)
+    if (dec.p && typeof dec.p === 'object') {
+      Object.entries(dec.p).forEach(([id, pin]) => {
+        localStorage.setItem('tf4_pin_' + id, pin);
+        MASTER_PINS[id] = pin;
+      });
+      console.log('PINs loaded from team code for:', Object.keys(dec.p).join(', '));
+    }
+    // Pull groq key from Supabase
     const gr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.groq_config&select=value', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } });
     if (gr.ok) { const grows = await gr.json(); if (grows?.[0]?.value?.k) { localStorage.setItem('tf4_groq', grows[0].value.k); GROQ_KEY = grows[0].value.k; } }
-    // Pull custom PINs if admin stored any
+    // Also try pins_config from Supabase as backup
     const pr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.pins_config&select=value', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } });
-    if (pr.ok) {
-      const prows = await pr.json();
-      if (prows?.[0]?.value) {
-        // Restore custom PINs to localStorage
-        Object.entries(prows[0].value).forEach(([id, pin]) => {
-          localStorage.setItem('tf4_pin_' + id, pin);
-          MASTER_PINS[id] = pin;
-        });
-      }
-    }
+    if (pr.ok) { const prows = await pr.json(); if (prows?.[0]?.value) { Object.entries(prows[0].value).forEach(([id,pin]) => { localStorage.setItem('tf4_pin_'+id,pin); MASTER_PINS[id]=pin; }); } }
     // Pull all project data
     await syncFromDB();
     document.getElementById('team-connect').style.display = 'none';
@@ -2675,16 +2637,12 @@ function skipConnect() {
   // Run bootstrap FIRST — this syncs credentials from Supabase if team code is saved
   await bootstrapConfig();
 
-  // CRITICAL: Re-read ALL state after bootstrap — it ran async and may have
-  // written updated members/groq to localStorage after variables were declared.
+  // After bootstrap: update GROQ key (may have been pulled from Supabase)
   GROQ_KEY = localStorage.getItem('tf4_groq') || '';
-  const freshMembersAfterBoot = LS.get('members', null);
-  if (freshMembersAfterBoot) MEMBERS = freshMembersAfterBoot;
-
-  // Safety: guarantee every member has a PIN using seed fallbacks
-  const SEED_PINS = {MH:'1234', AY:'2222', NR:'3333', AN:'4444'};
-  MEMBERS = MEMBERS.map(m => ({ ...m, pin: m.pin || SEED_PINS[m.id] || '0000' }));
-  LS.set('members', MEMBERS);
+  // NOTE: MEMBERS is intentionally NOT refreshed from localStorage here.
+  // MEMBERS was set at declaration from localStorage or SEED_MEMBERS (which has PINs).
+  // bootstrapConfig() no longer touches members, so no corruption possible.
+  // PINs are handled entirely by getPIN() which reads MASTER_PINS + localStorage.
 
   // Decide what to show: team connect screen, or straight to login
   const skipped = localStorage.getItem('tf4_tc_skipped');
