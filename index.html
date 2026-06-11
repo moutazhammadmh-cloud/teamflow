@@ -1014,6 +1014,7 @@ function buildNav() {
   h += nb('statusreport','📄',LANG==='ar'?'تقرير الحالة':'Status Report');
   h += sec('AI');
   h += nb('ai','🤖',LANG==='ar'?'المساعد':'AI Assistant');
+  h += nb('settings','⚙️',LANG==='ar'?'الإعدادات':'Settings'); // visible to all — for personal Groq key
   if(u.isAdmin){
     h += sec(LANG==='ar'?'إدارة':'Admin');
     h += nb('alltasks','📊',LANG==='ar'?'جميع المهام':'All Tasks',ct>0?{c:'ct-r',v:ct}:null);
@@ -1521,18 +1522,32 @@ async function analyzeSmartHubReport(file,pid){
   const p=PROJECTS.find(x=>x.id===pid);
   openModal(`Analyzing SmartHub Report — ${pName(p)}`,
     `<div style="display:flex;gap:10px;align-items:center;padding:24px;"><div class="spin"></div><span>AI is reading the report and extracting all comments, conditions, and required actions...</span></div>`,'');
-  const prompt=`You are an expert Abu Dhabi ADM SmartHub reviewer for CDM Smith.
-Analyze this SmartHub/IDAS design submission report for: ${pName(p)} (${p.phase})
-Project TXN: ${p.txn||'—'}
+  const prompt=`You are an expert ADM SmartHub reviewer for CDM Smith Abu Dhabi.
+Analyze this SmartHub/IDAS submission report for: ${pName(p)} (${p.phase}, Stage: ${p.currentStage||'—'}, TXN: ${p.txn||'—'})
 
-Extract and structure ALL of the following:
-1. Each discipline with its current status
-2. Every comment/condition raised by ADM — rate each as: CRITICAL / MAJOR / MINOR / INFO
-3. For each comment: exact condition text, suggested response, estimated resolution time, responsible party (Mutaz/Aya/Nour/Anoud)
-4. Overall stage approval status
-5. List of specific tasks to create for the team
+STEP 1 — SUBMISSION SUMMARY:
+Extract transaction ID, stage, overall status, and submission date.
 
-Format your response clearly with sections. Be specific about ADM/IDAS requirements and reference standards where applicable.`;
+STEP 2 — DISCIPLINE STATUS TABLE:
+List every discipline with its status (Approved / In Progress / New / Need Modification).
+For each NOT approved, quote the exact ADM comment or condition.
+
+STEP 3 — REQUIRED ACTIONS PER CONDITION:
+For each unresolved condition:
+- Exact ADM requirement
+- Specific drawing/document to revise (reference ADM drawing standards: A1 format, title block, north arrow, scale bar, revision table, DTF form)
+- Who resolves it: Mutaz (coordination), Aya (drawings), Nour (follow-up), Anoud (documentation)
+- Estimated days to resolve
+- Severity: CRITICAL / MAJOR / MINOR
+
+STEP 4 — TASK LIST (use EXACTLY this format for each task):
+TASK: [specific action — be precise, include drawing number if applicable]
+ASSIGN: [Mutaz or Aya or Nour or Anoud]
+PRIORITY: [critical or high or medium or low]
+DUE: [number of days from today, e.g. 7]
+NOTES: [ADM standard reference, form number, portal name, specific requirement]
+
+Create at least one TASK block per unresolved discipline. Minimum 3 tasks total.`;
   const reply = await groqAnalyzeFile(file, prompt);
   const tasks = extractTasksFromAnalysis(reply, pid);
   openModal(`SmartHub AI Analysis — ${pName(p)}`,`
@@ -1548,16 +1563,45 @@ Format your response clearly with sections. Be specific about ADM/IDAS requireme
 }
 function extractTasksFromAnalysis(text, pid) {
   const tasks = [];
-  const lines = text.split('\n');
-  lines.forEach(line => {
-    if(/(submit|prepare|revise|update|coordinate|respond|send|upload|correct|address)/i.test(line) && line.length > 20 && line.length < 150) {
-      const ownerMatch = /(Mutaz|Aya|Nour|Anoud)/i.exec(line);
-      const owner = ownerMatch ? MEMBERS.find(m=>m.name.toLowerCase()===ownerMatch[1].toLowerCase())?.id||'MH' : 'AY';
-      const prioMatch = /critical|urgent/i.test(line) ? 'critical' : /major|important/i.test(line) ? 'high' : 'medium';
-      tasks.push({ title:line.replace(/^[\-\*\d\.\s]+/,'').substring(0,120), proj:pid, auth:'ADM', priority:prioMatch, owner, status:'todo', due:new Date(Date.now()+7*86400000).toISOString().split('T')[0], notes:'Auto-generated from SmartHub analysis', txn:'', created:new Date().toISOString(), createdBy:'AI' });
-    }
+  const OWNER_MAP = {mutaz:'MH',aya:'AY',nour:'NR',anoud:'AN'};
+  const PRIO_MAP  = {critical:'critical',high:'high',medium:'medium',low:'low'};
+  
+  // Method 1: Parse structured TASK: blocks from the new prompt format
+  const taskBlocks = text.split(/(?=TASK:)/i).filter(b => /^TASK:/i.test(b.trim()));
+  taskBlocks.forEach(block => {
+    const lines = block.split('\n').map(l=>l.trim()).filter(Boolean);
+    const title    = (lines.find(l=>/^TASK:/i.test(l))||'').replace(/^TASK:\s*/i,'').substring(0,120);
+    const assignRaw= (lines.find(l=>/^ASSIGN:/i.test(l))||'').replace(/^ASSIGN:\s*/i,'').toLowerCase();
+    const prioRaw  = (lines.find(l=>/^PRIORITY:/i.test(l))||'').replace(/^PRIORITY:\s*/i,'').toLowerCase();
+    const dueRaw   = (lines.find(l=>/^DUE:/i.test(l))||'').replace(/^DUE:\s*/i,'').replace(/[^0-9]/g,'');
+    const notes    = (lines.find(l=>/^NOTES:/i.test(l))||'').replace(/^NOTES:\s*/i,'').substring(0,200);
+    if(!title) return;
+    const ownerKey = Object.keys(OWNER_MAP).find(k=>assignRaw.includes(k)) || 'mh';
+    const owner    = OWNER_MAP[ownerKey] || 'MH';
+    const priority = PRIO_MAP[Object.keys(PRIO_MAP).find(k=>prioRaw.includes(k))] || 'medium';
+    const daysAhead= parseInt(dueRaw)||7;
+    const dueDate  = new Date(Date.now()+daysAhead*86400000).toISOString().split('T')[0];
+    tasks.push({ id:'t'+Date.now()+Math.random(), title, proj:pid, auth:'ADM', priority, owner, status:'todo', due:dueDate, notes:notes||'From AI report analysis', txn:'', created:new Date().toISOString(), createdBy:'AI' });
   });
-  return tasks.slice(0, 10);
+  
+  // Method 2: Fallback — keyword scanning if structured format not found
+  if(tasks.length === 0) {
+    const lines = text.split('\n');
+    lines.forEach(line => {
+      const l = line.trim();
+      if(l.length < 15 || l.length > 160) return;
+      if(!/(submit|prepare|revise|update|coordinate|respond|upload|correct|address|issue|obtain|apply|request|review|confirm)/i.test(l)) return;
+      if(/^(step|note|result|summary|status|the |this |based|refer)/i.test(l)) return;
+      const ownerM = /(Mutaz|Aya|Nour|Anoud)/i.exec(l);
+      const owner  = ownerM ? (OWNER_MAP[ownerM[1].toLowerCase()]||'MH') : 'MH';
+      const prio   = /critical|urgent|blocked/i.test(l)?'critical':/major|high|important/i.test(l)?'high':'medium';
+      tasks.push({ id:'t'+Date.now()+Math.random(), title:l.replace(/^[-*\d.\s]+/,'').substring(0,120), proj:pid, auth:'ADM', priority:prio, owner, status:'todo', due:new Date(Date.now()+7*86400000).toISOString().split('T')[0], notes:'From AI analysis', txn:'', created:new Date().toISOString(), createdBy:'AI' });
+    });
+  }
+  
+  // Deduplicate by title
+  const seen = new Set();
+  return tasks.filter(t=>{ if(seen.has(t.title)){return false;} seen.add(t.title); return true; }).slice(0,12);
 }
 async function createAnalysisTasks(tasks, pid) {
   tasks.forEach(t => { t.id = 't' + Date.now() + Math.random(); TASKS.push(t); });
@@ -1701,23 +1745,23 @@ async function uploadNOCReport(pid){
     const f=e.target.files[0];if(!f)return;
     const p=PROJECTS.find(x=>x.id===pid);
     openModal('Analyzing eNOC Report',`<div style="display:flex;gap:10px;align-items:center;padding:24px;"><div class="spin"></div><span>Reading eNOC report… extracting authority statuses, pending actions, and transaction IDs...</span></div>`,'');
-    const prompt=`You are an expert Abu Dhabi infrastructure NOC analyst for CDM Smith.
-Analyze this eNOC Portal report for: ${pName(p)} (TXN: ${p.txn||'—'})
+    const prompt=`You are an expert Abu Dhabi infrastructure eNOC analyst for CDM Smith.
+Analyze this eNOC Portal report for: ${pName(p)} (TXN: ${p.txn||'—'}, Phase: ${p.phase})
 
-Extract and provide:
-1. Transaction ID and project details
-2. ALL authority entities with their exact status (In Progress / New / Approved / Need Modification)
-3. For each "New" or "In Progress" authority:
-   - Required action (specific, with form numbers and portal steps)
-   - Documents needed (exact list per Abu Dhabi standards)
-   - Priority level (Critical/High/Medium/Low)
-   - Assign to: Mutaz (coordination/escalation), Aya (drawings/IDAS), Nour (coordination), or Anoud (documentation)
-   - Estimated timeline
-4. Any comments or conditions already raised — rate criticality
-5. Value engineering / cost saving opportunities
-6. Suggested tasks to create immediately
+STEP 1 — TRANSACTION DETAILS: Extract Transaction ID, project name, submission date, overall status.
 
-Be specific with TAQA, DMT, ADSSC, ADM/IDAS, ITC, ADNOC, e&, Du, TRANSCO, EAD procedures.`;
+STEP 2 — AUTHORITY STATUS: List EVERY authority with status (Approved/In Progress/New/Need Modification).
+
+STEP 3 — ACTIONS REQUIRED: For each pending authority — exact portal, documents needed, who does it (Mutaz=coordination, Aya=drawings, Nour=follow-up, Anoud=docs), days estimate, priority.
+
+STEP 4 — TASK LIST — use EXACTLY this format for each action:
+TASK: [precise action — e.g. Submit TAQA UCR conflict register for Segment A]
+ASSIGN: [Mutaz or Aya or Nour or Anoud]
+PRIORITY: [critical or high or medium or low]
+DUE: [number of days, e.g. 7]
+NOTES: [form number, portal, Abu Dhabi standard reference]
+
+Generate a TASK block for every pending authority. Minimum 4 tasks total. Reference exact standards: TAQA/ADDC 1.2m cover, DMT Form DMT-01, ADM A1 drawings, ITC UCDM ROW-602, ADSSC Manning equation.`;
     const reply = await groqAnalyzeFile(f, prompt);
     const tasks = extractTasksFromAnalysis(reply, pid);
     openModal(`eNOC Analysis — ${pName(p)}`,`
@@ -2330,16 +2374,33 @@ Sections: Executive Summary · Critical Issues · NOC Status by Project · Team 
 // SETTINGS
 // ═══════════════════════════════════════════
 function renderSettings(){
+  const u=CUR;
   const el=document.getElementById('pg-settings');
   el.innerHTML=`
-  <div class="sec-hdr"><div><div class="sec-title">Settings <span class="admin-lock">🔒 Admin</span></div></div></div>
-  <div class="g2">
-    <div class="card"><div class="card-title"><div class="ci ci-b">🤖</div>Groq AI (Free)</div>
-      <div class="alert al-b" style="margin-bottom:10px;">Get free key at <strong>console.groq.com</strong> → API Keys → Create Free</div>
-      <div class="fg"><div class="lbl">Groq API Key</div><input type="password" id="groq-key-in" placeholder="gsk_..." value="${GROQ_KEY||''}"/></div>
-      <button class="btn btn-primary" onclick="saveGroq()">Save Key</button>
-      <div id="groq-test" style="margin-top:8px;"></div>
+  <div class="sec-hdr"><div><div class="sec-title">Settings</div><div class="sec-sub">AI key is personal — each team member saves their own once</div></div></div>
+
+  <!-- GROQ CARD — visible to ALL users -->
+  <div class="card" style="margin-bottom:16px;border-top:3px solid var(--blue);">
+    <div class="card-title"><div class="ci ci-b">🤖</div>My Groq AI Key — Personal Setup</div>
+    <div class="alert al-b" style="margin-bottom:12px;">
+      Each team member saves their own key <strong>once</strong> — it stays on your device permanently.
+      Get a free key at <strong>console.groq.com</strong> → sign up free → API Keys → Create → copy the key starting with <code>gsk_</code>
     </div>
+    <div class="r2">
+      <div class="fg">
+        <div class="lbl">Your Groq API Key</div>
+        <input type="password" id="groq-key-in" placeholder="gsk_..." value="${GROQ_KEY||''}"/>
+        <div class="form-hint">Saved on this device only. Free forever. Never shared.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:12px;">
+        <button class="btn btn-primary" onclick="saveGroq()">💾 Save My Key</button>
+      </div>
+    </div>
+    <div id="groq-test" style="margin-top:4px;"></div>
+    ${GROQ_KEY ? '<div class="alert al-g" style="margin-top:8px;">✅ AI active on this device — Groq key saved.</div>' : ''}
+  </div>
+
+  ${u.isAdmin ? `<div class="g2">
     <div class="card"><div class="card-title"><div class="ci ci-t">🗄️</div>Supabase Database (Live Sync)</div>
       <div class="alert ${SB_ENABLED?'al-g':'al-a'}" style="margin-bottom:10px;">${SB_ENABLED?'✅ Connected — all data syncs live across devices':'⚠️ Not connected — data is local only'}</div>
       <div class="fg"><div class="lbl">Project URL</div><input id="sb-url2" value="${SB_URL}" placeholder="https://xxxx.supabase.co"/></div>
@@ -2371,23 +2432,35 @@ function renderSettings(){
       <input type="file" id="imp-file" style="display:none;" accept=".json" onchange="importData(event)"/>
     </div>
     <div class="card"><div class="card-title"><div class="ci ci-p">🧠</div>AI Memory</div>
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:10px;">The AI remembers your past conversations and project actions to give better, context-aware responses.</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:10px;">The AI remembers your past conversations and project actions.</div>
       <div style="font-size:11px;color:var(--ink4);">Memory entries: ${AI_MEMORY?.context?.length||0} · Last updated: ${AI_MEMORY?.lastUpdated?fmtS(AI_MEMORY.lastUpdated):'Never'}</div>
       <button class="btn btn-danger btn-sm" style="margin-top:10px;" onclick="clearAIMemory()">Clear AI Memory</button>
     </div>
-  </div>`;
+  </div>` : ''}`;
 }
 async function saveGroq(){
   const k=document.getElementById('groq-key-in').value.trim();
-  if(k&&!k.startsWith('gsk_')){alert('Groq keys start with gsk_');return;}
-  GROQ_KEY=k; LS.set('groq',k); updateGroqStatus();
-  // Push to Supabase so all team devices get it automatically
-  if(SB_ENABLED && k){
-    await fetch(SB_URL+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'groq_config',value:{k},updated_at:new Date().toISOString()})});
-    document.getElementById('groq-test').innerHTML='<div class="alert al-g">✅ Key saved & shared with all team devices via Supabase.</div>';
+  if(k&&!k.startsWith('gsk_')){alert('Groq keys start with gsk_ — check you copied the full key.');return;}
+  // Save to ALL storage locations to ensure it survives refresh
+  GROQ_KEY = k;
+  localStorage.setItem('tf4_groq', k);  // direct localStorage
+  localStorage.setItem('tf4_groq_bak', k); // backup key
+  LS.set('groq', k);  // LS wrapper
+  updateGroqStatus();
+  const el = document.getElementById('groq-test');
+  if(k){
+    el.innerHTML='<div class="alert al-g">✅ Groq key saved to this device. AI is active — you will not need to enter it again.</div>';
+    // Also push to Supabase as convenience (admin only — team can ignore)
+    if(SB_ENABLED){
+      try {
+        await fetch(SB_URL+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'groq_config',value:{k},updated_at:new Date().toISOString()})});
+      } catch(e){}
+    }
   } else {
-    document.getElementById('groq-test').innerHTML=k?'<div class="alert al-a">⚠ Key saved locally only. Connect Supabase to share with team.</div>':'<div class="alert al-a">⚠ Key cleared.</div>';
+    el.innerHTML='<div class="alert al-a">⚠ Key cleared.</div>';
   }
+  // Re-render settings to show updated status
+  setTimeout(()=>renderSettings(), 300);
 }
 async function saveSupabase(){
   const url=document.getElementById('sb-url2').value.trim().replace(/\/$/,'');
@@ -2695,7 +2768,9 @@ function skipConnect() {
   await bootstrapConfig();
 
   // After bootstrap: update GROQ key (may have been pulled from Supabase)
-  GROQ_KEY = localStorage.getItem('tf4_groq') || '';
+  GROQ_KEY = localStorage.getItem('tf4_groq') || localStorage.getItem('tf4_groq_bak') || LS.get('groq','') || '';
+  // Re-save to ensure it's in all locations
+  if(GROQ_KEY){ localStorage.setItem('tf4_groq',GROQ_KEY); localStorage.setItem('tf4_groq_bak',GROQ_KEY); LS.set('groq',GROQ_KEY); }
   // NOTE: MEMBERS is intentionally NOT refreshed from localStorage here.
   // MEMBERS was set at declaration from localStorage or SEED_MEMBERS (which has PINs).
   // bootstrapConfig() no longer touches members, so no corruption possible.
