@@ -511,13 +511,36 @@ async function bootstrapConfig() {
       localStorage.setItem('tf4_sb_url', SB_URL);
       localStorage.setItem('tf4_sb_key', SB_KEY);
     }
-    // Pull Groq key too
+    // Pull Groq key
     const gr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.groq_config&select=value', {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
     if (gr.ok) {
       const grows = await gr.json();
       if (grows && grows[0] && grows[0].value?.k) localStorage.setItem('tf4_groq', grows[0].value.k);
+    }
+    // Pull members WITHOUT PINs to populate login grid on new device
+    // (PINs are stored locally only — they never go to Supabase)
+    const mr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.members&select=value', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (mr.ok) {
+      const mrows = await mr.json();
+      if (mrows && mrows[0] && Array.isArray(mrows[0].value)) {
+        const dbMembers = mrows[0].value;
+        // Merge with local members (to preserve PINs if they exist locally)
+        const localMembers = JSON.parse(localStorage.getItem('tf4_members') || 'null');
+        const merged = dbMembers.map(dbM => {
+          const localM = (localMembers || []).find(lm => lm.id === dbM.id);
+          // Use local PIN if available, otherwise use seed PIN
+          const seedM = [
+            {id:'MH',pin:'1234'},{id:'AY',pin:'2222'},
+            {id:'NR',pin:'3333'},{id:'AN',pin:'4444'}
+          ].find(s => s.id === dbM.id);
+          return { ...dbM, pin: (localM?.pin) || (seedM?.pin) || '0000' };
+        });
+        localStorage.setItem('tf4_members', JSON.stringify(merged));
+      }
     }
   } catch(e) { SB_ENABLED = false; }
 }
@@ -588,9 +611,8 @@ function startPolling() {
 }
 
 async function syncFromDB() {
-  if (!SB_ENABLED || !CUR) return;
+  if (!SB_ENABLED) return;
   try {
-    // Fetch all rows at once — more efficient than individual gets
     const r = await fetch(SB_URL + '/rest/v1/tf_data?select=key,value', {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
@@ -599,23 +621,42 @@ async function syncFromDB() {
     if (!Array.isArray(rows)) return;
     const data = {};
     rows.forEach(row => { data[row.key] = row.value; });
-    let changed = false;
-    if (data.tasks)    { TASKS     = data.tasks;    LS.set('tasks',    TASKS);    changed = true; }
-    if (data.nocs)     { NOCS      = data.nocs;     LS.set('nocs',     NOCS);     changed = true; }
-    if (data.projects) { PROJECTS  = data.projects; LS.set('projects', PROJECTS); changed = true; }
-    if (data.members)  { MEMBERS   = data.members;  LS.set('members',  MEMBERS);  changed = true; }
-    if (data.smarthub) { SMARTHUB  = data.smarthub; LS.set('smarthub', SMARTHUB); changed = true; }
-    if (data.tpd)      { TPD       = data.tpd;      LS.set('tpd',      TPD);      changed = true; }
-    if (data.routenoc) { ROUTE_NOC = data.routenoc; LS.set('routenoc', ROUTE_NOC); changed = true; }
-    if (data.notifications) { NOTIFICATIONS = data.notifications; LS.set('notifications', NOTIFICATIONS); updateNotifBadge(); }
+
+    // CRITICAL: Merge members carefully — NEVER overwrite PINs from DB blindly.
+    // Always preserve local PINs so login is never broken by a bad sync.
+    if (data.members && Array.isArray(data.members)) {
+      const localMembers = LS.get('members', null);
+      const merged = data.members.map(dbM => {
+        // Keep DB member data (name, role, color, projects) but preserve local PIN if it exists
+        const localM = (localMembers || MEMBERS).find(lm => lm.id === dbM.id);
+        return localM ? { ...dbM, pin: localM.pin } : dbM;
+      });
+      // Add any local-only members not in DB yet
+      (localMembers || MEMBERS).forEach(lm => {
+        if (!merged.find(m => m.id === lm.id)) merged.push(lm);
+      });
+      MEMBERS = merged;
+      LS.set('members', MEMBERS);
+    }
+
+    if (data.tasks)    { TASKS     = data.tasks;    LS.set('tasks',    TASKS); }
+    if (data.nocs)     { NOCS      = data.nocs;     LS.set('nocs',     NOCS); }
+    if (data.projects) { PROJECTS  = data.projects; LS.set('projects', PROJECTS); }
+    if (data.smarthub) { SMARTHUB  = data.smarthub; LS.set('smarthub', SMARTHUB); }
+    if (data.tpd)      { TPD       = data.tpd;      LS.set('tpd',      TPD); }
+    if (data.routenoc) { ROUTE_NOC = data.routenoc; LS.set('routenoc', ROUTE_NOC); }
+    if (data.notifications) { NOTIFICATIONS = data.notifications; LS.set('notifications', NOTIFICATIONS); if(CUR) updateNotifBadge(); }
     if (data.ai_memory)     { AI_MEMORY = data.ai_memory; LS.set('ai_memory', AI_MEMORY); }
-    if (changed) {
+
+    // Only re-render if user is logged in
+    if (CUR) {
       const pg = document.querySelector('.nb.on')?.getAttribute('onclick')?.match(/go\('(\w+)'\)/)?.[1];
       if (pg && RENDERS[pg]) RENDERS[pg]();
-      // Flash sync dot green briefly
       const dot = document.getElementById('sync-dot');
       if (dot) { dot.style.background = '#10b981'; setTimeout(()=>{ if(SB_ENABLED) dot.style.background='var(--green)'; }, 800); }
     }
+    // Rebuild login grid with latest members (even before login)
+    if (document.getElementById('user-grid')) buildLoginGrid();
   } catch(e) { console.warn('syncFromDB error:', e.message); }
 }
 
@@ -701,8 +742,16 @@ let chatHistory = [];
 
 async function persist(keys=['tasks','nocs']) {
   const map = { tasks:TASKS, nocs:NOCS, projects:PROJECTS, members:MEMBERS, smarthub:SMARTHUB, tpd:TPD, routenoc:ROUTE_NOC, notifications:NOTIFICATIONS, ai_memory:AI_MEMORY };
-  await Promise.all(keys.map(k => { LS.set(k, map[k]); return dbSet(k, map[k]); }));
-  updateNotifBadge();
+  await Promise.all(keys.map(k => {
+    LS.set(k, map[k]); // Always save full data locally (including PINs)
+    // For Supabase: strip PINs from members before uploading — PINs are local-only
+    let dbVal = map[k];
+    if (k === 'members' && Array.isArray(dbVal)) {
+      dbVal = dbVal.map(m => { const {pin, ...rest} = m; return rest; }); // Remove pin
+    }
+    return dbSet(k, dbVal);
+  }));
+  if(CUR) updateNotifBadge();
 }
 
 // ═══════════════════════════════════════════
@@ -844,22 +893,36 @@ function buildLoginGrid() {
     </div>`).join('');
 }
 function selUser(id) {
-  selUID = id; pinBuf = '';
+  selUID = id; pinBuf = ''; // always reset PIN buffer when switching user
   document.querySelectorAll('.ucard').forEach(c => c.classList.remove('sel'));
   document.getElementById('uc-'+id)?.classList.add('sel');
-  const m = mbr(id);
-  document.getElementById('pin-lbl').textContent = `PIN for ${m.name} / رمز ${m.nameAr||m.name}`;
+  // Read fresh from localStorage in case sync updated members
+  const freshM = LS.get('members', MEMBERS);
+  const m = freshM.find(x => x.id === id) || { name: id, nameAr: id };
+  document.getElementById('pin-lbl').textContent = 'Enter PIN for ' + m.name;
   document.getElementById('pin-area').style.display = 'block';
   document.getElementById('lerr').textContent = '';
   updDots();
+  // Focus hint — scroll into view on mobile
+  document.getElementById('pin-area').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function PK(k) { if(pinBuf.length>=4)return; pinBuf+=k; updDots(); if(pinBuf.length===4)setTimeout(PE,80); }
 function PD() { if(pinBuf.length)pinBuf=pinBuf.slice(0,-1); updDots(); document.getElementById('lerr').textContent=''; }
 function updDots(err=false) { for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);d.className='pdot'+(i<pinBuf.length?(err?' e':' f'):'');} }
 function PE() {
-  if(!selUID){document.getElementById('lerr').textContent='Select a profile.';return;}
-  const m = mbr(selUID);
+  if(!selUID){document.getElementById('lerr').textContent='Select a profile first.';return;}
+  // Always read MEMBERS fresh from localStorage right before PIN check
+  // This ensures any sync hasn't left MEMBERS variable stale
+  const freshMembers = LS.get('members', MEMBERS);
+  const m = freshMembers.find(x => x.id === selUID) || mbr(selUID);
+  if(!m.pin){
+    document.getElementById('lerr').textContent='No PIN set. Contact Mutaz (Admin).';
+    setTimeout(()=>{pinBuf='';updDots();},800);
+    return;
+  }
   if(pinBuf===m.pin) {
+    // Update global MEMBERS with fresh copy
+    MEMBERS = freshMembers;
     CUR = m;
     document.getElementById('login').style.display='none';
     document.getElementById('shell').style.display='flex';
@@ -879,6 +942,8 @@ function logout() {
   document.querySelectorAll('.ucard').forEach(c=>c.classList.remove('sel'));
   document.getElementById('lerr').textContent='';
   document.getElementById('notif-panel').style.display='none';
+  // Rebuild login grid in case members updated
+  buildLoginGrid();
 }
 
 // ═══════════════════════════════════════════
