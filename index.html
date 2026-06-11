@@ -677,6 +677,21 @@ const SEED_MEMBERS = [
   { id:'NR', name:'Nour', nameAr:'نور', role:'Project Coordinator', roleAr:'منسق مشروع', pin:'3333', isAdmin:false, color:'#0694a2' },
   { id:'AN', name:'Anoud', nameAr:'عنود', role:'Project Coordinator', roleAr:'منسق مشروع', pin:'4444', isAdmin:false, color:'#b45309' },
 ];
+
+// MASTER PIN LOOKUP — single source of truth for all PIN checks
+// Checks localStorage for admin-changed PINs first, then falls back to seed
+const MASTER_PINS = {MH:'1234', AY:'2222', NR:'3333', AN:'4444'};
+function getPIN(id) {
+  // Check if admin changed this PIN via Settings (stored in localStorage)
+  const stored = localStorage.getItem('tf4_pin_' + id);
+  if (stored) return stored;
+  // Fall back to master seed PIN
+  return MASTER_PINS[id] || '0000';
+}
+function setPIN(id, pin) {
+  localStorage.setItem('tf4_pin_' + id, pin);
+  MASTER_PINS[id] = pin;
+}
 const SEED_PROJECTS = [
   { id:'p1', name:'Al Shamkha City Infrastructure', nameAr:'مدينة الشامخة', client:'ADM / Aldar', phase:'Detailed Design', color:'#1a56db', members:['MH','AY','AN'], desc:'Public realm, utilities, roads', txn:'TXN-SHK-2025-001', stages:['Concept','Preliminary','Detailed'], currentStage:'Detailed' },
   { id:'p2', name:'HSCT — ADNEC Segment', nameAr:'مسار الدراجات ADNEC', client:'DMT / Aldar', phase:'Design Development', color:'#6c2bd9', members:['MH','AY'], desc:'At-grade cycle track, drainage', txn:'TXN-HSCT-2025-002', stages:['Concept','Preliminary','Detailed'], currentStage:'Preliminary' },
@@ -916,14 +931,11 @@ function PD() { if(pinBuf.length)pinBuf=pinBuf.slice(0,-1); updDots(); document.
 function updDots(err=false) { for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);d.className='pdot'+(i<pinBuf.length?(err?' e':' f'):'');} }
 function PE() {
   if(!selUID){document.getElementById('lerr').textContent='Select a profile first.';return;}
-  // Find member — use MEMBERS global (guaranteed refreshed after bootstrapConfig in init)
-  const m = MEMBERS.find(x => x.id === selUID);
+  const m = MEMBERS.find(x => x.id === selUID) || SEED_MEMBERS.find(x => x.id === selUID);
   if(!m){ document.getElementById('lerr').textContent='Profile not found. Refresh the page.'; return; }
-  // If still no PIN (edge case), apply seed PIN now
-  const SEED_PINS = {MH:'1234', AY:'2222', NR:'3333', AN:'4444'};
-  const pin = m.pin || SEED_PINS[m.id] || '0000';
-  if(pinBuf === pin) {
-    CUR = {...m, pin}; // ensure CUR always has a pin
+  // getPIN() is the ONLY place PINs are checked — immune to sync issues
+  if(pinBuf === getPIN(selUID)) {
+    CUR = m;
     document.getElementById('login').style.display='none';
     document.getElementById('shell').style.display='flex';
     bootApp();
@@ -2107,7 +2119,9 @@ async function addMember(){
   if(!id||!name||!pin||pin.length!==4){alert('Name, ID (2-3 chars) and 4-digit PIN are all required.');return;}
   if(MEMBERS.find(m=>m.id===id)){alert('ID already exists. Choose a different one.');return;}
   const color=document.getElementById('am-col').value;
-  MEMBERS.push({id,name,nameAr:document.getElementById('am-nar').value||name,role:document.getElementById('am-r').value,roleAr:document.getElementById('am-rar').value||document.getElementById('am-r').value,pin,isAdmin:false,color});
+  MEMBERS.push({id,name,nameAr:document.getElementById('am-nar').value||name,role:document.getElementById('am-r').value,roleAr:document.getElementById('am-rar').value||document.getElementById('am-r').value,isAdmin:false,color});
+  setPIN(id, pin); // PIN stored locally via setPIN — never in Supabase
+  MASTER_PINS[id] = pin; // Also add to master lookup
   PROJECTS.forEach(p=>{const cb=document.getElementById('amcb-'+p.id);if(cb?.classList.contains('on')&&(!p.members||!p.members.includes(id)))p.members.push(id);});
   await persist(['members','projects']);closeModal();renderTeam();buildLoginGrid();
   await addNotification(`👋 Welcome to TeamFlow!`,`You've been added by ${CUR.name}. Log in with your PIN: ${pin}`,'task',id);
@@ -2131,7 +2145,16 @@ function openEditMember(id){
 }
 async function saveMember(id){
   const m=MEMBERS.find(x=>x.id===id);
-  if(m){m.name=document.getElementById('em-n').value;m.nameAr=document.getElementById('em-nar').value||m.name;m.role=document.getElementById('em-r').value;m.roleAr=document.getElementById('em-rar').value||m.role;const np=document.getElementById('em-p').value;if(np&&np.length===4)m.pin=np;m.color=document.getElementById('em-col').value;await persist(['members']);}
+  if(m){
+    m.name=document.getElementById('em-n').value;
+    m.nameAr=document.getElementById('em-nar').value||m.name;
+    m.role=document.getElementById('em-r').value;
+    m.roleAr=document.getElementById('em-rar').value||m.role;
+    m.color=document.getElementById('em-col').value;
+    const np=document.getElementById('em-p').value;
+    if(np&&np.length===4) setPIN(id, np); // PIN stored locally only, never synced
+    await persist(['members']); // persists name/role/color to Supabase (no PIN)
+  }
   closeModal();renderTeam();buildLoginGrid();
 }
 async function deleteMember(id){
@@ -2398,6 +2421,15 @@ async function saveSupabase(){
   const gk=localStorage.getItem('tf4_groq');
   if(gk) await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'groq_config',value:{k:gk},updated_at:new Date().toISOString()})});
   // Generate team code so others can bootstrap
+  // Push custom PINs to Supabase so team devices can pull them
+  const customPins = {};
+  Object.keys(MASTER_PINS).forEach(id => {
+    const stored = localStorage.getItem('tf4_pin_' + id);
+    if (stored) customPins[id] = stored;
+  });
+  if (Object.keys(customPins).length > 0) {
+    await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'pins_config',value:customPins,updated_at:new Date().toISOString()})});
+  }
   const teamCode = btoa(JSON.stringify({u:url,k:key}));
   localStorage.setItem('tf4_team_code',teamCode);
   updateSyncStatus();startPolling();
@@ -2408,7 +2440,12 @@ function copyTeamCode(){
   if(!tc){alert('No team code yet. Connect Supabase first.');return;}
   navigator.clipboard.writeText(tc).then(()=>alert('Team code copied! Send it to your team members via WhatsApp or Teams.')).catch(()=>{prompt('Copy this team code and send to team:',tc);});
 }
-function changeAdminPin(){const p1=document.getElementById('np1').value,p2=document.getElementById('np2').value;if(p1!==p2||p1.length!==4){alert('PINs must match and be 4 digits.');return;}const admin=MEMBERS.find(m=>m.isAdmin);if(admin){admin.pin=p1;persist(['members']);}alert('Admin PIN changed.');}
+function changeAdminPin(){
+  const p1=document.getElementById('np1').value,p2=document.getElementById('np2').value;
+  if(p1!==p2||p1.length!==4){alert('PINs must match and be 4 digits.');return;}
+  setPIN('MH', p1); // stored in localStorage only, never in Supabase
+  alert('Admin PIN changed. It is saved on this device only.');
+}
 function exportData(){const b=new Blob([JSON.stringify({MEMBERS,PROJECTS,TASKS,NOCS,SMARTHUB,TPD,ROUTE_NOC},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='TeamFlow-backup-'+new Date().toISOString().split('T')[0]+'.json';a.click();}
 function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{try{const d=JSON.parse(ev.target.result);if(d.MEMBERS)MEMBERS=d.MEMBERS;if(d.PROJECTS)PROJECTS=d.PROJECTS;if(d.TASKS)TASKS=d.TASKS;if(d.NOCS)NOCS=d.NOCS;if(d.SMARTHUB)SMARTHUB=d.SMARTHUB;if(d.TPD)TPD=d.TPD;if(d.ROUTE_NOC)ROUTE_NOC=d.ROUTE_NOC;await persist(['tasks','nocs','projects','members','smarthub','tpd','routenoc']);alert('Imported! Reloading...');window.location.reload();}catch{alert('Invalid file.');}};r.readAsText(f);}
 function resetData(){if(!confirm('Reset ALL data to defaults?'))return;['members','projects','tasks','nocs','smarthub','tpd','routenoc','notifications','ai_memory'].forEach(k=>{localStorage.removeItem('tf4_'+k);});window.location.reload();}
@@ -2588,24 +2625,34 @@ async function connectWithCode() {
   try {
     const dec = JSON.parse(atob(raw));
     if (!dec.u || !dec.k) throw new Error('Invalid code format');
-    // Test connection
     const test = await fetch(dec.u + '/rest/v1/tf_data?limit=1', { headers: { 'apikey': dec.k, 'Authorization': 'Bearer ' + dec.k } });
     if (!test.ok) throw new Error('Connection failed — code may be expired or incorrect');
-    // Save credentials
     SB_URL = dec.u; SB_KEY = dec.k; SB_ENABLED = true;
     localStorage.setItem('tf4_sb_url', SB_URL);
     localStorage.setItem('tf4_sb_key', SB_KEY);
     localStorage.setItem('tf4_team_code', raw);
-    // Pull groq key from Supabase
+    // Pull groq key
     const gr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.groq_config&select=value', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } });
-    if (gr.ok) { const grows = await gr.json(); if (grows && grows[0] && grows[0].value?.k) { localStorage.setItem('tf4_groq', grows[0].value.k); GROQ_KEY = grows[0].value.k; } }
-    // Pull all data
+    if (gr.ok) { const grows = await gr.json(); if (grows?.[0]?.value?.k) { localStorage.setItem('tf4_groq', grows[0].value.k); GROQ_KEY = grows[0].value.k; } }
+    // Pull custom PINs if admin stored any
+    const pr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.pins_config&select=value', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } });
+    if (pr.ok) {
+      const prows = await pr.json();
+      if (prows?.[0]?.value) {
+        // Restore custom PINs to localStorage
+        Object.entries(prows[0].value).forEach(([id, pin]) => {
+          localStorage.setItem('tf4_pin_' + id, pin);
+          MASTER_PINS[id] = pin;
+        });
+      }
+    }
+    // Pull all project data
     await syncFromDB();
-    // Update UI
     document.getElementById('team-connect').style.display = 'none';
     document.getElementById('login').style.display = 'flex';
     updateSyncStatus(); updateGroqStatus();
     buildLoginGrid();
+    document.getElementById('tc-err').textContent = '';
   } catch(e) {
     document.getElementById('tc-err').textContent = 'Error: ' + e.message;
     SB_ENABLED = false;
