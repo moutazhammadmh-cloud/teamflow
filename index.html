@@ -302,6 +302,27 @@ td strong{color:var(--ink);}
 <body>
 
 <!-- LOGIN -->
+<!-- TEAM CONNECT SCREEN — shown on new devices -->
+<div id="team-connect" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#1a56db,#0f1623);z-index:9998;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:12px;width:100%;max-width:480px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,.2);">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="width:48px;height:48px;border-radius:13px;background:#1a56db;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;color:#fff;margin-bottom:12px;">TF</div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:-.03em;">Connect to TeamFlow</div>
+      <div style="font-size:11px;color:#718096;margin-top:4px;">CDM Smith · Abu Dhabi Infrastructure PM</div>
+    </div>
+    <div style="background:#ebf0ff;border:1px solid #bfcfe8;border-radius:8px;padding:12px 14px;font-size:12px;color:#1a56db;margin-bottom:18px;">
+      💡 Ask <strong>Mutaz</strong> for the Team Connect Code. It's in TeamFlow → Settings → Supabase section.
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#4a5568;margin-bottom:5px;">Team Connect Code</label>
+      <textarea id="tc-input" style="width:100%;background:#f7f8fa;border:1.5px solid #e2e5eb;border-radius:8px;padding:10px;font-family:IBM Plex Mono,monospace;font-size:11px;color:#0f1623;min-height:70px;resize:none;" placeholder="Paste the code Mutaz shared with you..."></textarea>
+    </div>
+    <button onclick="connectWithCode()" style="width:100%;background:#1a56db;color:#fff;border:none;border-radius:8px;padding:11px;font-family:Inter,sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;">Connect & Continue →</button>
+    <button onclick="skipConnect()" style="width:100%;background:transparent;color:#718096;border:1px solid #e2e5eb;border-radius:8px;padding:9px;font-family:Inter,sans-serif;font-size:12px;cursor:pointer;">I'll set it up later (local only)</button>
+    <div id="tc-err" style="color:#c81e1e;font-size:11px;margin-top:8px;text-align:center;"></div>
+  </div>
+</div>
+
 <div id="login">
   <div class="lcard">
     <div class="lhead">
@@ -450,6 +471,56 @@ td strong{color:var(--ink);}
 let SB_URL = localStorage.getItem('tf4_sb_url') || '';
 let SB_KEY = localStorage.getItem('tf4_sb_key') || '';
 let SB_ENABLED = !!(SB_URL && SB_KEY);
+
+// AUTO-BOOTSTRAP: On every page load, sync credentials from Supabase.
+// This is what makes ALL team PCs connect automatically — no manual setup needed.
+// Admin saves config once → it goes into Supabase → every other device reads it.
+async function bootstrapConfig() {
+  if (SB_ENABLED) {
+    // Already configured locally — push config to Supabase so others can pull it
+    try {
+      await fetch(SB_URL + '/rest/v1/tf_data', {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ key: 'app_config', value: { sb_url: SB_URL, sb_key: SB_KEY }, updated_at: new Date().toISOString() })
+      });
+      const gk = localStorage.getItem('tf4_groq');
+      if (gk) await fetch(SB_URL + '/rest/v1/tf_data', {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ key: 'groq_config', value: { k: gk }, updated_at: new Date().toISOString() })
+      });
+    } catch(e) {}
+    return;
+  }
+
+  // Not configured locally — try fetching via saved team code
+  const tc = localStorage.getItem('tf4_team_code');
+  if (!tc) return;
+  try {
+    const dec = JSON.parse(atob(tc));
+    if (!dec.u || !dec.k) return;
+    const r = await fetch(dec.u + '/rest/v1/tf_data?key=eq.app_config&select=value', {
+      headers: { 'apikey': dec.k, 'Authorization': 'Bearer ' + dec.k }
+    });
+    if (!r.ok) return;
+    const rows = await r.json();
+    if (rows && rows[0]) {
+      const cfg = rows[0].value;
+      SB_URL = cfg.sb_url; SB_KEY = cfg.sb_key; SB_ENABLED = true;
+      localStorage.setItem('tf4_sb_url', SB_URL);
+      localStorage.setItem('tf4_sb_key', SB_KEY);
+    }
+    // Pull Groq key too
+    const gr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.groq_config&select=value', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (gr.ok) {
+      const grows = await gr.json();
+      if (grows && grows[0] && grows[0].value?.k) localStorage.setItem('tf4_groq', grows[0].value.k);
+    }
+  } catch(e) { SB_ENABLED = false; }
+}
 
 async function sbFetch(path, opts={}) {
   if (!SB_ENABLED) return null;
@@ -2202,6 +2273,16 @@ function renderSettings(){
       <div class="fg"><div class="lbl">Project URL</div><input id="sb-url2" value="${SB_URL}" placeholder="https://xxxx.supabase.co"/></div>
       <div class="fg"><div class="lbl">Anon Key</div><input type="password" id="sb-key2" value="${SB_KEY}" placeholder="eyJ..."/></div>
       <button class="btn btn-primary" onclick="saveSupabase()">Save & Connect</button>
+      <div id="sb-result"></div>
+      <div style="margin-top:12px;" id="team-code-section">
+        ${localStorage.getItem('tf4_team_code') ? `
+        <div class="lbl" style="margin-bottom:6px;">TEAM CONNECT CODE — Share with Aya, Nour & Anoud</div>
+        <div class="alert al-b" style="font-size:11px;margin-bottom:6px;">They paste this code in the "Connect Team" screen → instantly connected to Supabase + AI, no setup needed.</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;word-break:break-all;cursor:pointer;user-select:all;" onclick="copyTeamCode()" title="Click to copy">
+          ${localStorage.getItem('tf4_team_code')}
+        </div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="copyTeamCode()">📋 Copy Team Code</button>` : ''}
+      </div>
     </div>
     <div class="card"><div class="card-title"><div class="ci ci-p">🔐</div>Change Admin PIN</div>
       <div class="fg"><div class="lbl">New PIN (4 digits)</div><input type="password" id="np1" maxlength="4" placeholder="••••"/></div>
@@ -2224,17 +2305,43 @@ function renderSettings(){
     </div>
   </div>`;
 }
-function saveGroq(){const k=document.getElementById('groq-key-in').value.trim();if(k&&!k.startsWith('gsk_')){alert('Groq keys start with gsk_');return;}GROQ_KEY=k;LS.set('groq',k);updateGroqStatus();document.getElementById('groq-test').innerHTML=k?`<div class="alert al-g">✅ AI key saved. Full intelligence active.</div>`:`<div class="alert al-a">⚠ Key cleared.</div>`;}
+async function saveGroq(){
+  const k=document.getElementById('groq-key-in').value.trim();
+  if(k&&!k.startsWith('gsk_')){alert('Groq keys start with gsk_');return;}
+  GROQ_KEY=k; LS.set('groq',k); updateGroqStatus();
+  // Push to Supabase so all team devices get it automatically
+  if(SB_ENABLED && k){
+    await fetch(SB_URL+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'groq_config',value:{k},updated_at:new Date().toISOString()})});
+    document.getElementById('groq-test').innerHTML='<div class="alert al-g">✅ Key saved & shared with all team devices via Supabase.</div>';
+  } else {
+    document.getElementById('groq-test').innerHTML=k?'<div class="alert al-a">⚠ Key saved locally only. Connect Supabase to share with team.</div>':'<div class="alert al-a">⚠ Key cleared.</div>';
+  }
+}
 async function saveSupabase(){
   const url=document.getElementById('sb-url2').value.trim().replace(/\/$/,'');
   const key=document.getElementById('sb-key2').value.trim();
   if(!url||!key){alert('Both URL and key required.');return;}
   SB_URL=url;SB_KEY=key;SB_ENABLED=true;
-  const test=await sbFetch('tf_data?limit=1');
-  if(test===null){alert('Connection failed. Check URL and key.');SB_ENABLED=false;return;}
+  // Test connection
+  const test = await fetch(url+'/rest/v1/tf_data?limit=1',{headers:{'apikey':key,'Authorization':'Bearer '+key}});
+  if(!test.ok){alert('Connection failed. Check URL and key, and make sure you ran the SQL to create the table.');SB_ENABLED=false;return;}
   localStorage.setItem('tf4_sb_url',url);localStorage.setItem('tf4_sb_key',key);
-  await persist(['tasks','nocs','projects','members','smarthub','tpd','routenoc']);
-  updateSyncStatus();startPolling();alert('✅ Connected! Data syncing live.');
+  // Push all local data to Supabase
+  await persist(['tasks','nocs','projects','members','smarthub','tpd','routenoc','notifications','ai_memory']);
+  // Store config + groq key in Supabase so other devices auto-connect
+  await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'app_config',value:{sb_url:url,sb_key:key},updated_at:new Date().toISOString()})});
+  const gk=localStorage.getItem('tf4_groq');
+  if(gk) await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'groq_config',value:{k:gk},updated_at:new Date().toISOString()})});
+  // Generate team code so others can bootstrap
+  const teamCode = btoa(JSON.stringify({u:url,k:key}));
+  localStorage.setItem('tf4_team_code',teamCode);
+  updateSyncStatus();startPolling();
+  document.getElementById('sb-result').innerHTML='<div class="alert al-g" style="margin-top:10px;">✅ Connected! Team code generated. Share it with your team so their devices connect automatically.</div><div class="txn-field" style="margin-top:8px;user-select:all;">'+teamCode+'</div>';
+}
+function copyTeamCode(){
+  const tc = localStorage.getItem('tf4_team_code');
+  if(!tc){alert('No team code yet. Connect Supabase first.');return;}
+  navigator.clipboard.writeText(tc).then(()=>alert('Team code copied! Send it to your team members via WhatsApp or Teams.')).catch(()=>{prompt('Copy this team code and send to team:',tc);});
 }
 function changeAdminPin(){const p1=document.getElementById('np1').value,p2=document.getElementById('np2').value;if(p1!==p2||p1.length!==4){alert('PINs must match and be 4 digits.');return;}const admin=MEMBERS.find(m=>m.isAdmin);if(admin){admin.pin=p1;persist(['members']);}alert('Admin PIN changed.');}
 function exportData(){const b=new Blob([JSON.stringify({MEMBERS,PROJECTS,TASKS,NOCS,SMARTHUB,TPD,ROUTE_NOC},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='TeamFlow-backup-'+new Date().toISOString().split('T')[0]+'.json';a.click();}
@@ -2406,17 +2513,74 @@ function openModal(t,b,f=''){document.getElementById('modal-title').textContent=
 function closeModal(){document.getElementById('modal-ov').style.display='none';}
 
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// TEAM CONNECT FUNCTIONS
+// ═══════════════════════════════════════════
+async function connectWithCode() {
+  const raw = document.getElementById('tc-input').value.trim();
+  if (!raw) { document.getElementById('tc-err').textContent = 'Paste the team code first.'; return; }
+  document.getElementById('tc-err').textContent = 'Connecting...';
+  try {
+    const dec = JSON.parse(atob(raw));
+    if (!dec.u || !dec.k) throw new Error('Invalid code format');
+    // Test connection
+    const test = await fetch(dec.u + '/rest/v1/tf_data?limit=1', { headers: { 'apikey': dec.k, 'Authorization': 'Bearer ' + dec.k } });
+    if (!test.ok) throw new Error('Connection failed — code may be expired or incorrect');
+    // Save credentials
+    SB_URL = dec.u; SB_KEY = dec.k; SB_ENABLED = true;
+    localStorage.setItem('tf4_sb_url', SB_URL);
+    localStorage.setItem('tf4_sb_key', SB_KEY);
+    localStorage.setItem('tf4_team_code', raw);
+    // Pull groq key from Supabase
+    const gr = await fetch(SB_URL + '/rest/v1/tf_data?key=eq.groq_config&select=value', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } });
+    if (gr.ok) { const grows = await gr.json(); if (grows && grows[0] && grows[0].value?.k) { localStorage.setItem('tf4_groq', grows[0].value.k); GROQ_KEY = grows[0].value.k; } }
+    // Pull all data
+    await syncFromDB();
+    // Update UI
+    document.getElementById('team-connect').style.display = 'none';
+    document.getElementById('login').style.display = 'flex';
+    updateSyncStatus(); updateGroqStatus();
+    buildLoginGrid();
+  } catch(e) {
+    document.getElementById('tc-err').textContent = 'Error: ' + e.message;
+    SB_ENABLED = false;
+  }
+}
+function skipConnect() {
+  localStorage.setItem('tf4_tc_skipped', '1');
+  document.getElementById('team-connect').style.display = 'none';
+  document.getElementById('login').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
-buildLoginGrid();
-document.getElementById('lang-btn').textContent=LANG==='en'?'🌐 AR':'🌐 EN';
-document.documentElement.lang=LANG;
-document.documentElement.dir=LANG==='ar'?'rtl':'ltr';
-// Show Supabase setup if not configured and first visit
-if(!SB_ENABLED&&!LS.get('sb_setup_shown',false)){
-  // Don't auto-show — user can set it up in Settings
-  LS.set('sb_setup_shown',true);
-}
+(async function init() {
+  document.getElementById('lang-btn').textContent = LANG==='en'?'🌐 AR':'🌐 EN';
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = LANG==='ar'?'rtl':'ltr';
+
+  // Run bootstrap FIRST — this syncs credentials from Supabase if team code is saved
+  await bootstrapConfig();
+  // Re-read GROQ key after bootstrap (may have been pulled from Supabase)
+  GROQ_KEY = localStorage.getItem('tf4_groq') || '';
+
+  // Decide what to show: team connect screen, or straight to login
+  const skipped = localStorage.getItem('tf4_tc_skipped');
+  const hasCode  = localStorage.getItem('tf4_team_code');
+  if (!SB_ENABLED && !skipped && !hasCode) {
+    // New device with no credentials and hasn't been asked yet
+    document.getElementById('team-connect').style.display = 'flex';
+    document.getElementById('login').style.display = 'none';
+  } else {
+    document.getElementById('team-connect').style.display = 'none';
+    document.getElementById('login').style.display = 'flex';
+  }
+
+  buildLoginGrid();
+  updateSyncStatus();
+  updateGroqStatus();
+})();
 </script>
 </body>
 </html>
