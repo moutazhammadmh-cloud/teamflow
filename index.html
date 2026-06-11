@@ -617,7 +617,25 @@ async function syncFromDB() {
     if (data.tpd)      { TPD       = data.tpd;      LS.set('tpd',      TPD); }
     if (data.routenoc) { ROUTE_NOC = data.routenoc; LS.set('routenoc', ROUTE_NOC); }
     if (data.notifications) { NOTIFICATIONS = data.notifications; LS.set('notifications', NOTIFICATIONS); if(CUR) updateNotifBadge(); }
-    if (data.ai_memory)     { AI_MEMORY = data.ai_memory; LS.set('ai_memory', AI_MEMORY); }
+    if (data.ai_memory) { AI_MEMORY = data.ai_memory; LS.set('ai_memory', AI_MEMORY); }
+
+    // Sync Groq key — so team devices get it automatically when admin saves it
+    if (data.groq_config?.k) {
+      const newKey = data.groq_config.k;
+      if (newKey !== GROQ_KEY) {
+        GROQ_KEY = newKey;
+        localStorage.setItem('tf4_groq', newKey);
+        LS.set('groq', newKey);
+        updateGroqStatus();
+      }
+    }
+    // Sync PINs — so team devices get updated PINs
+    if (data.pins_config && typeof data.pins_config === 'object') {
+      Object.entries(data.pins_config).forEach(([id, pin]) => {
+        localStorage.setItem('tf4_pin_' + id, pin);
+        MASTER_PINS[id] = pin;
+      });
+    }
 
     // Only re-render if user is logged in
     if (CUR) {
@@ -2497,30 +2515,69 @@ async function groqChat(msg){
   }catch(e){return`Error: ${e.message}. Please check your Groq API key in Settings.`;}
 }
 async function groqAnalyzeFile(file, prompt) {
-  if (!GROQ_KEY) return 'Demo mode — add your Groq API key in Settings to enable AI document analysis. Once added, upload any eNOC or SmartHub PDF and the AI will extract all authority statuses, comments, required actions, and auto-create tasks.';
+  if (!GROQ_KEY) return 'No AI key active. Once Mutaz saves the Groq key in Settings it will sync to all team devices automatically within 10 seconds.';
+
+  // Convert file to base64
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const isPDF = file.name.toLowerCase().endsWith('.pdf');
+
+  // METHOD 1: Anthropic Claude API — reads PDFs and images natively
   try {
-    // Read file as text (works for text-based PDFs) or extract what we can
-    const fileText = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const raw = e.target.result;
-        // Extract readable text from the raw content
-        const text = raw.replace(/[^\x20-\x7E\n\r\t\u0600-\u06FF]/g, ' ')
-                        .replace(/\s{3,}/g, '\n')
-                        .substring(0, 8000); // Limit to 8000 chars
-        resolve(text);
-      };
-      reader.onerror = () => resolve('');
-      reader.readAsText(file, 'utf-8');
+    const block = isPDF
+      ? { type:'document', source:{ type:'base64', media_type:'application/pdf', data:base64 } }
+      : { type:'image',    source:{ type:'base64', media_type:file.type||'image/png', data:base64 } };
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role:'user', content:[ block, { type:'text', text:prompt } ] }]
+      })
     });
-    const contentNote = fileText.trim().length > 100
-      ? `\n\nEXTRACTED FILE CONTENT (${file.name}, ${(file.size/1024).toFixed(0)}KB):\n---\n${fileText}\n---`
-      : `\n\nFile: ${file.name} (${(file.size/1024).toFixed(0)}KB)\nNote: Could not extract text from this PDF (may be scanned/image-based). Please provide analysis based on your Abu Dhabi authority knowledge and typical eNOC/IDAS report structure for ${pName(prj('p1'))} type projects.`;
-    return await groqChat(prompt + contentNote);
-  } catch(e) {
-    return await groqChat(prompt + `\n\nFile: ${file.name} — ${e.message}. Provide analysis based on typical Abu Dhabi eNOC report structure.`);
-  }
+
+    if (res.ok) {
+      const d = await res.json();
+      const text = (d.content||[]).map(b=>b.text||'').join('').trim();
+      if (text.length > 80) return text;
+    }
+  } catch(e) { console.warn('Anthropic PDF fallback:', e.message); }
+
+  // METHOD 2: Extract text from PDF binary and send to Groq
+  const rawText = await new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const bin = e.target.result || '';
+      // Pull readable ASCII runs from PDF binary (works for text-based PDFs)
+      const chunks = [];
+      let cur = '';
+      for (let i = 0; i < bin.length && chunks.join('').length < 6000; i++) {
+        const cc = bin.charCodeAt(i);
+        if (cc >= 32 && cc <= 126) { cur += bin[i]; }
+        else { if (cur.length > 4) chunks.push(cur.trim()); cur = ''; }
+      }
+      if (cur.length > 4) chunks.push(cur.trim());
+      resolve(chunks.filter(c => /[a-zA-Z]{3}/.test(c)).join(' ').substring(0, 6000));
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsBinaryString(file);
+  });
+
+  const hasText = rawText.length > 300 && (rawText.match(/[a-zA-Z]/g)||[]).length > 100;
+  const ctx = hasText
+    ? '\n\nEXTRACTED PDF TEXT from ' + file.name + ':\n---\n' + rawText + '\n---'
+    : '\n\nFile: ' + file.name + ' (scanned PDF — text not extractable). Provide analysis based on typical Abu Dhabi ' + (file.name.toLowerCase().includes('enoc') ? 'eNOC portal' : 'SmartHub/IDAS') + ' report structure and the project context above.';
+
+  return await groqChat(prompt + ctx);
 }
+
 function buildCtx(){
   const u=CUR;const mT=myT(u.id).filter(t=>t.status!=='done');
   const mN=myN(u.id);
