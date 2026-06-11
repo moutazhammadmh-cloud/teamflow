@@ -445,6 +445,8 @@ td strong{color:var(--ink);}
       <div class="page" id="pg-deadlines"></div>
       <div class="page" id="pg-ai" style="display:none;"></div>
       <div class="page" id="pg-statusreport"></div>
+      <div class="page" id="pg-drawings"></div>
+      <div class="page" id="pg-kpi"></div>
       <div class="page" id="pg-alltasks"></div>
       <div class="page" id="pg-team"></div>
       <div class="page" id="pg-allprojects"></div>
@@ -610,9 +612,11 @@ async function syncFromDB() {
     const data = {};
     rows.forEach(row => { data[row.key] = row.value; });
 
-    // Members from Supabase have no PINs — that's fine, getPIN() handles PINs separately
-    if (data.members && Array.isArray(data.members)) {
-      MEMBERS = data.members;
+    // Members from Supabase have no PINs — getPIN() handles PINs separately
+    // NEVER overwrite with empty array (would cause blank login screen)
+    if (data.members && Array.isArray(data.members) && data.members.length > 0) {
+      MEMBERS = data.members.filter(m => m && m.id && m.name);
+      if (MEMBERS.length === 0) MEMBERS = JSON.parse(JSON.stringify(SEED_MEMBERS));
       LS.set('members', MEMBERS);
     }
 
@@ -871,23 +875,43 @@ async function markAllRead() {
 // ═══════════════════════════════════════════
 // AI MEMORY
 // ═══════════════════════════════════════════
-async function updateAIMemory(userMsg, aiReply) {
-  if (!AI_MEMORY) AI_MEMORY = { context:[], facts:[], lastUpdated:null };
-  AI_MEMORY.context.push({ role:'user', content:userMsg, time:new Date().toISOString() });
-  AI_MEMORY.context.push({ role:'assistant', content:aiReply, time:new Date().toISOString() });
-  // Keep last 40 exchanges
-  if (AI_MEMORY.context.length > 80) AI_MEMORY.context = AI_MEMORY.context.slice(-80);
-  AI_MEMORY.lastUpdated = new Date().toISOString();
-  // Extract facts from reply using simple heuristics
+async function updateAIMemory(userMsg, aiReply, projId) {
+  if (!AI_MEMORY) AI_MEMORY = { context:[], facts:[], topics:[], lastUpdated:null };
+  if (!AI_MEMORY.topics) AI_MEMORY.topics = [];
+  const stamp = new Date().toISOString();
+  AI_MEMORY.context.push({ role:'user', content:userMsg, user:CUR?.id, proj:projId||null, time:stamp });
+  AI_MEMORY.context.push({ role:'assistant', content:aiReply, time:stamp });
+  if (AI_MEMORY.context.length > 120) AI_MEMORY.context = AI_MEMORY.context.slice(-120);
+  AI_MEMORY.lastUpdated = stamp;
+  // Track topics per project+user for cross-referencing
+  if (projId) {
+    AI_MEMORY.topics.push({ proj:projId, user:CUR?.id, userName:CUR?.name, q:userMsg.substring(0,200), time:stamp });
+    if (AI_MEMORY.topics.length > 200) AI_MEMORY.topics = AI_MEMORY.topics.slice(-200);
+  }
   const factPatterns = [/submitted (.+?) to (.+?) on/gi, /approved (.+?) for (.+)/gi, /NOC (.+?) is now/gi, /task (.+?) completed/gi];
-  factPatterns.forEach(p => { let m; while((m=p.exec(aiReply))!==null) AI_MEMORY.facts.push({ fact:m[0], time:new Date().toISOString() }); });
-  if (AI_MEMORY.facts.length > 50) AI_MEMORY.facts = AI_MEMORY.facts.slice(-50);
+  factPatterns.forEach(p => { let m; while((m=p.exec(aiReply))!==null) AI_MEMORY.facts.push({ fact:m[0], time:stamp }); });
+  if (AI_MEMORY.facts.length > 60) AI_MEMORY.facts = AI_MEMORY.facts.slice(-60);
   await persist(['ai_memory']);
 }
 function getAIMemoryContext() {
   if (!AI_MEMORY || !AI_MEMORY.context.length) return '';
   const recent = AI_MEMORY.context.slice(-20);
-  return '\n\nPREVIOUS CONVERSATION MEMORY:\n' + recent.map(m => `${m.role.toUpperCase()}: ${m.content.substring(0,200)}`).join('\n');
+  return '\n\nPREVIOUS CONVERSATION MEMORY:\n' + recent.map(m => `${m.role.toUpperCase()}${m.user?' ('+mbr(m.user).name+')':''}: ${m.content.substring(0,200)}`).join('\n');
+}
+// Cross-reference: find if a similar topic was discussed before by anyone on this project
+function findRelatedDiscussions(query, projId) {
+  if (!AI_MEMORY?.topics || !projId) return [];
+  const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 4);
+  if (!qWords.length) return [];
+  const matches = [];
+  AI_MEMORY.topics.forEach(t => {
+    if (t.proj !== projId) return;
+    if (t.user === CUR?.id && (Date.now() - new Date(t.time)) < 3600000) return; // skip own recent
+    const tLower = t.q.toLowerCase();
+    const hits = qWords.filter(w => tLower.includes(w)).length;
+    if (hits >= 2) matches.push({ ...t, relevance:hits });
+  });
+  return matches.sort((a,b)=>b.relevance-a.relevance).slice(0,3);
 }
 
 // ═══════════════════════════════════════════
@@ -895,7 +919,14 @@ function getAIMemoryContext() {
 // ═══════════════════════════════════════════
 let selUID = '', pinBuf = '';
 function buildLoginGrid() {
-  document.getElementById('user-grid').innerHTML = MEMBERS.map(m => `
+  // Self-heal: if MEMBERS is empty, restore from seed
+  if (!Array.isArray(MEMBERS) || MEMBERS.length === 0) {
+    MEMBERS = JSON.parse(JSON.stringify(SEED_MEMBERS));
+    LS.set('members', MEMBERS);
+  }
+  const grid = document.getElementById('user-grid');
+  if (!grid) return;
+  grid.innerHTML = MEMBERS.map(m => `
     <div class="ucard" id="uc-${m.id}" onclick="selUser('${m.id}')">
       <div class="uav" style="background:${m.color};">${m.id}</div>
       <div class="uname">${LANG==='ar'?(m.nameAr||m.name):m.name}</div>
@@ -987,6 +1018,8 @@ const PG = {
   deadlines:{en:'Deadlines',ar:'المواعيد',sub:{en:'Critical dates and overdue items',ar:'المواعيد الهامة'}},
   ai:{en:'AI Assistant',ar:'المساعد الذكي',sub:{en:'Groq · Free · Remembers your project history',ar:'Groq · مجاني · يتذكر تاريخ مشاريعك'}},
   statusreport:{en:'Project Status Report',ar:'تقرير حالة المشروع',sub:{en:'Printable PDF — current status · pending items · key dates',ar:'تقرير قابل للطباعة'}},
+  drawings:{en:'Drawing Review (AI)',ar:'مراجعة المخططات',sub:{en:'AI conflict detection · UCDM & Abu Dhabi authority compliance',ar:'كشف التعارضات بالذكاء الاصطناعي'}},
+  kpi:{en:'Team KPI & Performance',ar:'مؤشرات أداء الفريق',sub:{en:'AI-analysed performance metrics and recommendations',ar:'تحليل الأداء بالذكاء الاصطناعي'}},
   alltasks:{en:'All Tasks',ar:'جميع المهام',sub:{en:'Admin — full task view',ar:'عرض شامل للمهام'}},
   team:{en:'Team Management',ar:'إدارة الفريق',sub:{en:'Add members, assign projects, set PINs',ar:'إضافة أعضاء وتعيين مشاريع'}},
   allprojects:{en:'All Projects',ar:'جميع المشاريع',sub:{en:'Create and manage projects',ar:'إنشاء وإدارة المشاريع'}},
@@ -997,9 +1030,9 @@ const RENDERS = {
   dash:renderDash, tasks:renderTasks, myprojects:renderMyProjects,
   noc:renderNOC, smarthub:renderSmartHub, submissions:renderSubmissions,
   deadlines:renderDeadlines, ai:renderAIPage,
-  statusreport:renderStatusReport,
+  statusreport:renderStatusReport, drawings:renderDrawings,
   alltasks:renderAllTasks, team:renderTeam, allprojects:renderAllProjects,
-  reports:renderReports, settings:renderSettings,
+  reports:renderReports, kpi:renderKPI, settings:renderSettings,
 };
 function buildNav() {
   const u = CUR;
@@ -1020,6 +1053,7 @@ function buildNav() {
   h += nb('statusreport','📄',LANG==='ar'?'تقرير الحالة':'Status Report');
   h += sec('AI');
   h += nb('ai','🤖',LANG==='ar'?'المساعد':'AI Assistant');
+  h += nb('drawings','📐',LANG==='ar'?'مراجعة المخططات':'Drawing Review');
   h += nb('settings','⚙️',LANG==='ar'?'الإعدادات':'Settings'); // visible to all — for personal Groq key
   if(u.isAdmin){
     h += sec(LANG==='ar'?'إدارة':'Admin');
@@ -1027,6 +1061,7 @@ function buildNav() {
     h += nb('team','👥',LANG==='ar'?'الفريق':'Team');
     h += nb('allprojects','🗂️',LANG==='ar'?'المشاريع':'All Projects');
     h += nb('reports','📈',LANG==='ar'?'التقارير':'Reports');
+    h += nb('kpi','🎯',LANG==='ar'?'مؤشرات الأداء':'Team KPI');
     h += nb('settings','⚙️',LANG==='ar'?'الإعدادات':'Settings');
   }
   document.getElementById('nav-list').innerHTML = h;
@@ -1814,6 +1849,263 @@ function renderDeadlines(){
 }
 
 // ═══════════════════════════════════════════
+// DRAWING REVIEW — AI CONFLICT DETECTION (TAQA-AI style)
+// ═══════════════════════════════════════════
+function renderDrawings(){
+  const u=CUR; const prjs=u.isAdmin?PROJECTS:myP(u.id);
+  const el=document.getElementById('pg-drawings');
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">Drawing Review — AI Conflict Detection</div>
+    <div class="sec-sub">Upload utility/road drawings → AI checks UCDM ROW-602, TAQA, ADDC, ADSSC, DMT clearances & flags conflicts</div></div>
+  </div>
+  <div class="alert al-b" style="margin-bottom:14px;">
+    📐 Upload a drawing (PDF/image). The AI reviews it against Abu Dhabi authority standards — utility corridor widths, vertical sequencing, crossing angles, minimum cover, separation distances — and produces a redline-style conflict list with severity ratings.
+  </div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="fg"><div class="lbl">Project</div>
+      <select id="dwg-proj">${prjs.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}</select>
+    </div>
+    <div class="fg"><div class="lbl">Review Type</div>
+      <select id="dwg-type">
+        <option value="utility">Utility Corridor Conflict Check (UCDM ROW-602)</option>
+        <option value="taqa">TAQA/ADDC Power Crossing Review</option>
+        <option value="adssc">ADSSC Drainage/Sewer Clearance</option>
+        <option value="dmt">DMT Cycle Track / Road Geometry</option>
+        <option value="full">Full Multi-Authority Review</option>
+      </select>
+    </div>
+    <div class="dropzone" id="dwg-drop" onclick="pickDrawing()">
+      <div style="font-size:13px;font-weight:600;color:var(--blue);">📎 Upload Drawing (PDF, PNG, JPG)</div>
+      <div style="font-size:11px;color:var(--ink4);margin-top:4px;">AI reads the drawing and checks all Abu Dhabi authority clearance requirements</div>
+    </div>
+  </div>
+  <div id="dwg-results"></div>`;
+}
+function pickDrawing(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,.png,.jpg,.jpeg';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(f) reviewDrawing(f); };
+  inp.click();
+}
+async function reviewDrawing(file){
+  const pid=document.getElementById('dwg-proj').value;
+  const type=document.getElementById('dwg-type').value;
+  const p=prj(pid);
+  const res=document.getElementById('dwg-results');
+  res.innerHTML=`<div class="card"><div style="display:flex;gap:10px;align-items:center;"><div class="spin"></div><span>AI reviewing drawing against Abu Dhabi authority standards…</span></div></div>`;
+  const typePrompts={
+    utility:`Check this utility drawing against UCDM ROW-602 standards: utility corridor widths, horizontal separations between services (power/water/sewer/telecom/gas), vertical sequencing and depths, ROW allocation. Flag any conflicts where utilities are too close, wrong depth, or wrong sequence.`,
+    taqa:`Check this drawing for TAQA/ADDC power requirements: HV/LV cable minimum cover (1.2m under carriageway), concrete encasement at crossings, minimum 45° crossing angle, separation from other utilities, warning tape placement. Flag violations.`,
+    adssc:`Check this drawing for ADSSC drainage/sewer requirements: gravity sewer gradients, manhole spacing, minimum cover, clearance from other utilities, hydraulic capacity per Manning's equation, outfall levels. Flag conflicts.`,
+    dmt:`Check this drawing for DMT cycle track and road geometry: cycle track width, at-grade vs grade-separated requirements, drainage manhole offsets from track, clearances, kerb details. Flag issues.`,
+    full:`Perform a FULL multi-authority review: TAQA/ADDC power, ADSSC drainage, ITC/e&/Du telecom, ADNOC pipelines, DMT roads, UCDM corridor standards. Check all clearances, crossings, separations, depths.`
+  };
+  const prompt=`You are an expert Abu Dhabi infrastructure drawing reviewer for CDM Smith, reviewing a drawing for project: ${pName(p)}.
+
+${typePrompts[type]}
+
+Provide your review in this EXACT structure:
+
+DRAWING SUMMARY:
+[What the drawing shows — discipline, scope, scale if visible]
+
+CONFLICTS DETECTED:
+For each conflict use this format:
+CONFLICT: [short title]
+SEVERITY: [CRITICAL/MAJOR/MINOR]
+LOCATION: [where on the drawing — gridref, chainage, or description]
+STANDARD: [which Abu Dhabi standard/clause is violated]
+ISSUE: [what is wrong]
+RECOMMENDATION: [how to fix it]
+
+COMPLIANCE CHECKLIST:
+List each standard checked with ✓ (pass) or ✗ (fail).
+
+OVERALL ASSESSMENT:
+[Ready for submission / Needs revision / Major rework needed]
+
+Reference exact Abu Dhabi standards and clause numbers. Be specific and technical.`;
+  const reply=await groqAnalyzeFile(file, prompt);
+  // Parse conflicts for severity counts
+  const critical=(reply.match(/SEVERITY:\s*CRITICAL/gi)||[]).length;
+  const major=(reply.match(/SEVERITY:\s*MAJOR/gi)||[]).length;
+  const minor=(reply.match(/SEVERITY:\s*MINOR/gi)||[]).length;
+  res.innerHTML=`
+  <div class="card">
+    <div class="card-title"><div class="ci ci-o">📐</div>Drawing Review Result — ${pName(p)}</div>
+    <div style="font-size:11px;color:var(--ink4);margin-bottom:12px;">📎 ${esc(file.name)} · ${new Date().toLocaleString('en-GB')}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+      <div style="background:var(--red-lt);border:1px solid #f5b8b8;border-radius:var(--r);padding:12px;text-align:center;"><div style="font-size:24px;font-weight:800;color:var(--red);">${critical}</div><div style="font-size:10px;color:var(--red);font-weight:700;">CRITICAL</div></div>
+      <div style="background:var(--amber-lt);border:1px solid #f0cc7a;border-radius:var(--r);padding:12px;text-align:center;"><div style="font-size:24px;font-weight:800;color:var(--amber);">${major}</div><div style="font-size:10px;color:var(--amber);font-weight:700;">MAJOR</div></div>
+      <div style="background:var(--blue-lt);border:1px solid #bfcfe8;border-radius:var(--r);padding:12px;text-align:center;"><div style="font-size:24px;font-weight:800;color:var(--blue);">${minor}</div><div style="font-size:10px;color:var(--blue);font-weight:700;">MINOR</div></div>
+    </div>
+    <div style="max-height:460px;overflow-y:auto;font-size:12.5px;line-height:1.7;">${fmtAI(reply)}</div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="printDrawingReport('${esc(file.name)}','${pid}')">🖨 Export PDF</button>
+      <button class="btn btn-secondary btn-sm" onclick="createDrawingTasks(${JSON.stringify(extractDrawingTasks(reply,pid)).replace(/'/g,"\\'").replace(/"/g,'&quot;')})">📋 Create Tasks from Conflicts</button>
+    </div>
+  </div>`;
+  window._lastDrawingReview={file:file.name,proj:pid,reply,critical,major,minor};
+  await updateAIMemory(`Drawing review (${type}) for ${pName(p)}: ${file.name}`, reply, pid);
+}
+function extractDrawingTasks(text,pid){
+  const tasks=[]; const blocks=text.split(/(?=CONFLICT:)/i).filter(b=>/^CONFLICT:/i.test(b.trim()));
+  blocks.forEach(b=>{
+    const lines=b.split('\n').map(l=>l.trim());
+    const title=(lines.find(l=>/^CONFLICT:/i.test(l))||'').replace(/^CONFLICT:\s*/i,'').substring(0,110);
+    const sev=(lines.find(l=>/^SEVERITY:/i.test(l))||'').replace(/^SEVERITY:\s*/i,'').toLowerCase();
+    const rec=(lines.find(l=>/^RECOMMENDATION:/i.test(l))||'').replace(/^RECOMMENDATION:\s*/i,'').substring(0,200);
+    if(!title)return;
+    const priority=sev.includes('critical')?'critical':sev.includes('major')?'high':'medium';
+    tasks.push({id:'t'+Date.now()+Math.random(),title:'Resolve drawing conflict: '+title,proj:pid,auth:'Internal',priority,owner:'AY',status:'todo',due:new Date(Date.now()+5*86400000).toISOString().split('T')[0],notes:rec||'From drawing review',txn:'',created:new Date().toISOString(),createdBy:'AI'});
+  });
+  return tasks.slice(0,10);
+}
+async function createDrawingTasks(tasks){
+  if(!tasks||!tasks.length){alert('No conflicts to convert into tasks.');return;}
+  tasks.forEach(t=>TASKS.push(t));
+  await persist(['tasks']);
+  for(const t of tasks){ if(t.owner!==CUR.id) await addNotification('📐 Drawing Conflict Task',`"${t.title}"`,'task',t.owner); }
+  alert(`✅ ${tasks.length} tasks created from drawing conflicts.`);
+  renderDash();
+}
+function printDrawingReport(fname,pid){
+  const r=window._lastDrawingReview; if(!r)return;
+  const p=prj(pid);
+  const w=window.open('','_blank');
+  w.document.write(`<html><head><title>Drawing Review — ${pName(p)}</title>
+  <style>body{font-family:Arial,sans-serif;padding:30px;color:#1a1a1a;}h1{color:#1a56db;}h2{color:#333;border-bottom:2px solid #1a56db;padding-bottom:4px;}.meta{color:#666;font-size:13px;}.sev{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;}.crit{background:#fde8e8;color:#c81e1e;}.maj{background:#fef3c7;color:#b45309;}pre{white-space:pre-wrap;font-family:Arial;line-height:1.6;}</style>
+  </head><body>
+  <h1>Drawing Review Report</h1>
+  <p class="meta">CDM Smith · Abu Dhabi Infrastructure<br>Project: <b>${pName(p)}</b> · TXN: ${p.txn||'—'}<br>Drawing: ${fname}<br>Date: ${new Date().toLocaleString('en-GB')}<br>Reviewer: ${CUR.name}</p>
+  <p><span class="sev crit">${r.critical} CRITICAL</span> &nbsp; <span class="sev maj">${r.major} MAJOR</span> &nbsp; <span class="sev" style="background:#ebf0ff;color:#1a56db;">${r.minor} MINOR</span></p>
+  <pre>${r.reply.replace(/[<>]/g,'')}</pre>
+  </body></html>`);
+  w.document.close(); setTimeout(()=>w.print(),400);
+}
+
+// ═══════════════════════════════════════════
+// TEAM KPI & AI PERFORMANCE ANALYSIS
+// ═══════════════════════════════════════════
+function calcKPI(uid){
+  const all=TASKS.filter(t=>t.owner===uid);
+  const done=all.filter(t=>t.status==='done');
+  const open=all.filter(t=>t.status!=='done');
+  const overdue=open.filter(t=>dF(t.due)<0);
+  const onTime=done.filter(t=>!t.completedLate);
+  const critical=all.filter(t=>t.priority==='critical');
+  const completionRate=all.length?Math.round(done.length/all.length*100):0;
+  const onTimeRate=done.length?Math.round((done.length-done.filter(t=>t.completedLate).length)/done.length*100):100;
+  const overdueRate=open.length?Math.round(overdue.length/open.length*100):0;
+  // Score: weighted blend
+  const score=Math.max(0,Math.min(100,Math.round(completionRate*0.4 + onTimeRate*0.4 + (100-overdueRate)*0.2)));
+  return {total:all.length,done:done.length,open:open.length,overdue:overdue.length,critical:critical.length,completionRate,onTimeRate,overdueRate,score};
+}
+function renderKPI(){
+  const el=document.getElementById('pg-kpi');
+  const members=MEMBERS.filter(m=>!m.isAdmin); // team members only (your request: only team KPI)
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">Team KPI & Performance <span class="admin-lock">🔒 Admin</span></div>
+    <div class="sec-sub">Performance metrics per team member · AI-analysed recommendations</div></div>
+    <button class="btn btn-primary btn-sm" onclick="aiAnalyzeTeam()">🤖 AI Performance Analysis</button>
+  </div>
+  <div class="g3" style="margin-bottom:18px;">
+    ${members.map(m=>{
+      const k=calcKPI(m.id);
+      const scoreColor=k.score>=75?'var(--green)':k.score>=50?'var(--amber)':'var(--red)';
+      return `<div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:${m.color};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;">${m.id}</div>
+          <div style="flex:1;"><div style="font-size:14px;font-weight:700;">${mName(m)}</div><div style="font-size:10px;color:var(--ink4);">${m.role}</div></div>
+          <div style="text-align:center;"><div style="font-size:26px;font-weight:800;color:${scoreColor};line-height:1;">${k.score}</div><div style="font-size:8px;color:var(--ink4);font-weight:700;">SCORE</div></div>
+        </div>
+        <div class="prog" style="margin-bottom:14px;"><div class="prog-f" style="width:${k.score}%;background:${scoreColor};"></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:var(--bg);border-radius:var(--r);padding:8px;text-align:center;"><div style="font-size:16px;font-weight:800;color:var(--blue);">${k.completionRate}%</div><div style="font-size:8px;color:var(--ink4);">COMPLETION</div></div>
+          <div style="background:var(--bg);border-radius:var(--r);padding:8px;text-align:center;"><div style="font-size:16px;font-weight:800;color:var(--green);">${k.onTimeRate}%</div><div style="font-size:8px;color:var(--ink4);">ON-TIME</div></div>
+          <div style="background:var(--bg);border-radius:var(--r);padding:8px;text-align:center;"><div style="font-size:16px;font-weight:800;color:var(--ink2);">${k.done}/${k.total}</div><div style="font-size:8px;color:var(--ink4);">DONE/TOTAL</div></div>
+          <div style="background:var(--bg);border-radius:var(--r);padding:8px;text-align:center;"><div style="font-size:16px;font-weight:800;color:${k.overdue>0?'var(--red)':'var(--green)'};">${k.overdue}</div><div style="font-size:8px;color:var(--ink4);">OVERDUE</div></div>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:12px;" onclick="aiAnalyzeMember('${m.id}')">🤖 AI Recommendation for ${mName(m).split(' ')[0]}</button>
+      </div>`;
+    }).join('')}
+  </div>
+  <div id="kpi-ai-result"></div>`;
+}
+async function aiAnalyzeMember(uid){
+  const m=mbr(uid); const k=calcKPI(uid);
+  const mTasks=TASKS.filter(t=>t.owner===uid);
+  const res=document.getElementById('kpi-ai-result');
+  res.innerHTML=`<div class="card"><div style="display:flex;gap:10px;align-items:center;"><div class="spin"></div><span>AI analysing ${mName(m)}'s performance…</span></div></div>`;
+  const prompt=`You are a project management performance coach for CDM Smith Abu Dhabi.
+Analyse this team member's performance and give specific, actionable recommendations.
+
+TEAM MEMBER: ${mName(m)} — ${m.role}
+METRICS:
+- Total tasks: ${k.total}, Completed: ${k.done}, Open: ${k.open}
+- Completion rate: ${k.completionRate}%
+- On-time rate: ${k.onTimeRate}%
+- Overdue tasks: ${k.overdue}
+- Critical tasks handled: ${k.critical}
+- Performance score: ${k.score}/100
+
+CURRENT OPEN TASKS:
+${mTasks.filter(t=>t.status!=='done').map(t=>`- ${t.title} (${t.priority}, due ${fmtS(t.due)}${dF(t.due)<0?' OVERDUE':''})`).join('\n')||'None'}
+
+Provide:
+1. PERFORMANCE SUMMARY (2-3 sentences, honest but constructive)
+2. STRENGTHS (what they're doing well)
+3. AREAS TO IMPROVE (specific gaps)
+4. RECOMMENDED APPROACH (how the PM should work with this person — delegation style, support needed, workload balance)
+5. NEXT ACTIONS (concrete steps)
+
+Be specific to infrastructure PM work and Abu Dhabi authority deadlines.`;
+  const reply=await groqChat(prompt);
+  res.innerHTML=`<div class="card"><div class="card-title"><div style="width:28px;height:28px;border-radius:8px;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;">${m.id}</div>AI Performance Analysis — ${mName(m)}</div><div style="font-size:12.5px;line-height:1.7;">${fmtAI(reply)}</div></div>`;
+  await updateAIMemory(`Performance analysis for ${mName(m)}`, reply);
+}
+async function aiAnalyzeTeam(){
+  const res=document.getElementById('kpi-ai-result');
+  res.innerHTML=`<div class="card"><div style="display:flex;gap:10px;align-items:center;"><div class="spin"></div><span>AI analysing whole team performance…</span></div></div>`;
+  const members=MEMBERS.filter(m=>!m.isAdmin);
+  const teamData=members.map(m=>{const k=calcKPI(m.id);return `${mName(m)} (${m.role}): score ${k.score}/100, ${k.completionRate}% completion, ${k.onTimeRate}% on-time, ${k.overdue} overdue, ${k.total} total tasks`;}).join('\n');
+  const prompt=`You are a PM performance director for CDM Smith Abu Dhabi infrastructure. Analyse the whole team and give the project manager (Mutaz) strategic recommendations.
+
+TEAM PERFORMANCE:
+${teamData}
+
+PROJECTS: ${PROJECTS.map(p=>pName(p)).join(', ')}
+
+Provide:
+1. TEAM OVERVIEW (overall health, balance of workload)
+2. TOP PERFORMER and why
+3. WHO NEEDS SUPPORT and what kind
+4. WORKLOAD BALANCE recommendations (is anyone overloaded/underutilised?)
+5. RISK AREAS (deadlines, overdue clusters)
+6. PM ACTION PLAN (specific steps for Mutaz this week)
+
+Be direct, specific, and practical.`;
+  const reply=await groqChat(prompt);
+  res.innerHTML=`<div class="card"><div class="card-title"><div class="ci ci-b">🎯</div>AI Team Performance Analysis</div><div style="font-size:12.5px;line-height:1.7;">${fmtAI(reply)}</div>
+  <div style="margin-top:12px;"><button class="btn btn-primary btn-sm" onclick="printKPIReport()">🖨 Export KPI Report PDF</button></div></div>`;
+  window._lastTeamAnalysis=reply;
+  await updateAIMemory('Team performance analysis', reply);
+}
+function printKPIReport(){
+  const members=MEMBERS.filter(m=>!m.isAdmin);
+  const w=window.open('','_blank');
+  const rows=members.map(m=>{const k=calcKPI(m.id);return `<tr><td><b>${mName(m)}</b><br><span style="color:#666;font-size:11px;">${m.role}</span></td><td style="text-align:center;font-size:20px;font-weight:800;color:${k.score>=75?'#057a55':k.score>=50?'#b45309':'#c81e1e'};">${k.score}</td><td style="text-align:center;">${k.completionRate}%</td><td style="text-align:center;">${k.onTimeRate}%</td><td style="text-align:center;">${k.done}/${k.total}</td><td style="text-align:center;color:${k.overdue>0?'#c81e1e':'#057a55'};">${k.overdue}</td></tr>`;}).join('');
+  w.document.write(`<html><head><title>Team KPI Report</title><style>body{font-family:Arial;padding:30px;}h1{color:#1a56db;}table{width:100%;border-collapse:collapse;margin:16px 0;}th,td{border:1px solid #ddd;padding:10px;}th{background:#f7f8fa;font-size:11px;text-transform:uppercase;}pre{white-space:pre-wrap;line-height:1.6;}</style></head><body>
+  <h1>Team KPI & Performance Report</h1>
+  <p style="color:#666;">CDM Smith · Abu Dhabi · ${new Date().toLocaleDateString('en-GB')} · Prepared by ${CUR.name}</p>
+  <table><thead><tr><th>Team Member</th><th>Score</th><th>Completion</th><th>On-Time</th><th>Done/Total</th><th>Overdue</th></tr></thead><tbody>${rows}</tbody></table>
+  ${window._lastTeamAnalysis?'<h2 style="color:#333;border-bottom:2px solid #1a56db;">AI Analysis</h2><pre>'+window._lastTeamAnalysis.replace(/[<>]/g,'').replace(/\*\*/g,'')+'</pre>':''}
+  </body></html>`);
+  w.document.close(); setTimeout(()=>w.print(),400);
+}
+
+// ═══════════════════════════════════════════
 // STATUS REPORT — PRINTABLE PDF
 // ═══════════════════════════════════════════
 function renderStatusReport() {
@@ -1852,7 +2144,11 @@ function renderStatusReport() {
     <div><div class="sec-title">Project Status Report</div><div class="sec-sub">Auto-generated · ${today} · Print or save as PDF</div></div>
     <div class="sec-acts">
       <button class="btn btn-secondary btn-sm" onclick="renderStatusReport()">🔄 Refresh</button>
-      <button class="btn btn-primary btn-sm" onclick="printReport()">🖨 Print / Save PDF</button>
+      <button class="btn btn-primary btn-sm" onclick="printReport()">🖨 Print All / Save PDF</button>
+      <select id="proj-pdf-sel" style="width:auto;font-size:11px;padding:6px 10px;" onchange="if(this.value)exportProjectPDF(this.value)">
+        <option value="">📄 Export Single Project PDF…</option>
+        ${prjs.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}
+      </select>
     </div>
   </div>
 
@@ -2059,6 +2355,78 @@ function renderStatusReport() {
 
 function printReport() {
   window.print();
+}
+function exportProjectPDF(pid){
+  const p=prj(pid); const u=CUR;
+  const pTasks=TASKS.filter(t=>t.proj===pid);
+  const openT=pTasks.filter(t=>t.status!=='done');
+  const pNocs=NOCS.filter(n=>n.proj===pid);
+  const sh=SMARTHUB[pid]||{};
+  const tpd=TPD[pid]||{};
+  const rn=ROUTE_NOC[pid]||[];
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const nocApproved=pNocs.filter(n=>n.status==='approved').length;
+  const nocPct=pNocs.length?Math.round(nocApproved/pNocs.length*100):0;
+  const w=window.open('','_blank');
+  const stageRows=Object.entries(sh).map(([stage,discs])=>{
+    if(!Array.isArray(discs))return '';
+    return `<h3 style="margin-top:14px;color:#333;">${stage} Stage</h3><table><thead><tr><th>Discipline</th><th>Status</th><th>TXN</th><th>Date</th><th>Comment</th></tr></thead><tbody>${discs.map(d=>`<tr><td><b>${d.name}</b></td><td>${NSL(d.status)}</td><td style="font-family:monospace;font-size:10px;">${d.txn||'—'}</td><td>${d.date?fmtS(d.date):'—'}</td><td style="font-size:11px;">${d.comment||'—'}</td></tr>`).join('')}</tbody></table>`;
+  }).join('');
+  const taskRows=openT.sort((a,b)=>new Date(a.due)-new Date(b.due)).map(t=>{const d=dF(t.due);return `<tr style="background:${t.priority==='critical'?'#fff5f5':d<0?'#fff8f0':'#fff'}"><td><b>${t.title}</b>${t.auth?'<br><span style="color:#888;font-size:10px;">'+t.auth+'</span>':''}</td><td>${mbr(t.owner).name}</td><td><span style="padding:2px 8px;border-radius:10px;font-size:10px;background:${t.priority==='critical'?'#fde8e8':t.priority==='high'?'#fef3c7':'#ebf0ff'};color:${t.priority==='critical'?'#c81e1e':t.priority==='high'?'#b45309':'#1a56db'};">${t.priority}</span></td><td style="color:${d<0?'#c81e1e':d<=2?'#b45309':'#333'};font-weight:600;">${fmtS(t.due)}${d<0?' ('+Math.abs(d)+'d late)':''}</td><td style="font-family:monospace;font-size:10px;">${t.txn||'—'}</td></tr>`;}).join('');
+  const nocRows=pNocs.map(n=>{const d=n.due?dF(n.due):null;return `<tr><td><b>${n.auth}</b></td><td>${NSL(n.status)}</td><td style="font-family:monospace;font-size:10px;">${n.txn||n.ref||'—'}</td><td>${n.submitted?fmtS(n.submitted):'—'}</td><td style="color:${d!==null&&d<0?'#c81e1e':'#333'};">${n.due?fmtS(n.due):'—'}</td><td style="font-size:11px;">${n.notes||''}</td></tr>`;}).join('');
+  const rnRows=rn.map(n=>`<tr><td><b>${n.utility}</b></td><td>${NSL(n.status)}</td><td style="font-family:monospace;font-size:10px;">${n.txn||n.ref||'—'}</td><td>${n.due?fmtS(n.due):'—'}</td><td style="font-size:11px;">${n.notes||''}</td></tr>`).join('');
+  const tpdRows=['boreholes','roads','corridors'].map(cat=>{const d=tpd[cat]||{};return `<tr><td><b>${cat.charAt(0).toUpperCase()+cat.slice(1)}</b></td><td>${NSL(d.status||'not-started')}</td><td style="font-family:monospace;font-size:10px;">${d.txn||d.ref||'—'}</td><td>${d.date?fmtS(d.date):'—'}</td><td style="font-size:11px;">${d.notes||''}</td></tr>`;}).join('');
+  w.document.write(`<html><head><title>${pName(p)} — Status Report</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:32px;color:#1a1a1a;max-width:900px;margin:0 auto;}
+    h1{color:#1a56db;border-bottom:3px solid #1a56db;padding-bottom:8px;margin-bottom:4px;}
+    h2{color:#1a56db;margin-top:26px;border-bottom:1px solid #ccc;padding-bottom:4px;}
+    h3{color:#333;}
+    .meta{color:#666;font-size:13px;line-height:1.6;}
+    .stats{display:flex;gap:12px;margin:18px 0;flex-wrap:wrap;}
+    .stat{flex:1;min-width:110px;border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center;}
+    .stat .v{font-size:26px;font-weight:800;}
+    .stat .l{font-size:10px;color:#666;text-transform:uppercase;margin-top:4px;}
+    table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;}
+    th{background:#f0f2f5;border:1px solid #ddd;padding:8px;text-align:left;font-size:10px;text-transform:uppercase;color:#555;}
+    td{border:1px solid #ddd;padding:8px;}
+    .footer{margin-top:30px;padding-top:12px;border-top:1px solid #ccc;color:#888;font-size:11px;text-align:center;}
+    @media print{body{padding:12px;}}
+  </style></head><body>
+  <h1>${pName(p)}</h1>
+  <p class="meta"><b>CDM Smith · Abu Dhabi Infrastructure</b><br>
+  Client: ${p.client} · Phase: ${p.phase} · SmartHub Stage: <b>${p.currentStage||'—'}</b><br>
+  Project TXN: ${p.txn||'—'}<br>
+  Report Date: ${today} · Prepared by: ${u.name}</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v" style="color:#1a56db;">${openT.length}</div><div class="l">Open Tasks</div></div>
+    <div class="stat"><div class="v" style="color:#c81e1e;">${openT.filter(t=>dF(t.due)<0).length}</div><div class="l">Overdue</div></div>
+    <div class="stat"><div class="v" style="color:#b45309;">${openT.filter(t=>t.priority==='critical').length}</div><div class="l">Critical</div></div>
+    <div class="stat"><div class="v" style="color:#057a55;">${nocPct}%</div><div class="l">NOC Progress</div></div>
+    <div class="stat"><div class="v" style="color:#6c2bd9;">${pNocs.filter(n=>n.status!=='approved').length}</div><div class="l">Pending NOCs</div></div>
+  </div>
+
+  <h2>1. NOC Submissions</h2>
+  <table><thead><tr><th>Authority</th><th>Status</th><th>TXN/Ref</th><th>Submitted</th><th>Due</th><th>Notes</th></tr></thead><tbody>${nocRows||'<tr><td colspan=6>No NOCs recorded</td></tr>'}</tbody></table>
+
+  <h2>2. SmartHub / ADM Design Stages</h2>
+  ${stageRows||'<p style="color:#888;">No SmartHub data.</p>'}
+
+  <h2>3. TPD Submissions</h2>
+  <table><thead><tr><th>Category</th><th>Status</th><th>TXN/Ref</th><th>Date</th><th>Notes</th></tr></thead><tbody>${tpdRows}</tbody></table>
+
+  <h2>4. Route NOC per Utility</h2>
+  <table><thead><tr><th>Utility</th><th>Status</th><th>TXN/Ref</th><th>Due</th><th>Notes</th></tr></thead><tbody>${rnRows||'<tr><td colspan=5>No Route NOCs</td></tr>'}</tbody></table>
+
+  <h2>5. Open Tasks & Action Items</h2>
+  <table><thead><tr><th>Task</th><th>Owner</th><th>Priority</th><th>Due</th><th>TXN</th></tr></thead><tbody>${taskRows||'<tr><td colspan=5>No open tasks</td></tr>'}</tbody></table>
+
+  <div class="footer">Generated by TeamFlow PM · CDM Smith Inc. Abu Dhabi · ${today}</div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(),500);
+  document.getElementById('proj-pdf-sel').value='';
 }
 
 // ═══════════════════════════════════════════
@@ -2489,8 +2857,7 @@ async function saveSupabase(){
   MEMBERS.forEach(m => { allPins[m.id] = getPIN(m.id); });
   await fetch(url+'/rest/v1/tf_data',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'pins_config',value:allPins,updated_at:new Date().toISOString()})});
   // Embed Supabase creds + PINs + Groq key all in one team code
-  const gk = localStorage.getItem('tf4_groq') || '';
-  const teamCode = btoa(JSON.stringify({u:url,k:key,p:allPins,g:gk}));
+  const teamCode = btoa(JSON.stringify({u:url,k:key,p:allPins,g:(gk||'')}));
   localStorage.setItem('tf4_team_code',teamCode);
   updateSyncStatus();startPolling();
   document.getElementById('sb-result').innerHTML='<div class="alert al-g" style="margin-top:10px;">✅ Connected! Team code generated. Share it with your team so their devices connect automatically.</div><div class="txn-field" style="margin-top:8px;user-select:all;">'+teamCode+'</div>';
@@ -2514,22 +2881,44 @@ async function clearAIMemory(){AI_MEMORY={context:[],facts:[],lastUpdated:null};
 // ═══════════════════════════════════════════
 // AI ASSISTANT — GROQ WITH MEMORY
 // ═══════════════════════════════════════════
-const AI_SYS=`You are TeamFlow AI, an expert Abu Dhabi infrastructure project manager for CDM Smith Inc. Abu Dhabi. You have persistent memory of past conversations and project history.
+const AI_SYS=`You are TeamFlow AI, an expert Abu Dhabi infrastructure project manager for CDM Smith Inc. Abu Dhabi. You have persistent memory of past conversations and project history across the whole team.
 
 TEAM: Mutaz Hammad (PM/Admin), Aya (Design Coordinator — IDAS/drawings), Nour (Project Coordinator), Anoud (Project Coordinator)
-AUTHORITY EXPERTISE: TAQA/ADDC (1.2m cable cover, concrete encasement, 45° crossings), DMT eNOC (Form DMT-01, cycle tracks), ADSSC (hydraulic design), ADM/IDAS (A1 drawings, DTF, 14-day RFI), ADM SmartHub (design stage approvals), ITC (UCDM ROW-602, 4×100mm HDPE), ADNOC (90° crossings, 10m exclusion), e&/Du/Etisalat, TRANSCO, EAD, GHQ, Tadweer, TPD (boreholes/roads/corridors)
-Be specific, direct, reference exact standards. Remember and reference previous conversation context.`;
+
+ABU DHABI AUTHORITY STANDARDS (reference exact clauses):
+• UCDM (Utility Corridor Design Manual) ROW-602: utility corridor widths, horizontal separation (power-water min 300mm, power-comms min 300mm), vertical sequencing top-to-bottom (telecom/ITC shallowest → power → water → irrigation → sewer/drainage deepest), ROW allocation per road class.
+• TAQA/ADDC (power): HV cable min 1.2m cover under carriageway, 0.8m under footpath; concrete encasement at road crossings; min 45° crossing angle; 300mm separation from other services; warning tape 300mm above; substation clearances.
+• ADSSC (sewer/drainage): gravity sewer min gradients, Manning's n=0.013, manhole spacing max ~100m, min cover 1.0m, hydraulic capacity checks, outfall invert levels.
+• DMT eNOC: Form DMT-01, cycle track standards (2.0m min width, at-grade requires drainage manhole offset min 600mm from track edge), 15-day response, ROW permits.
+• ADM/IDAS + SmartHub: A1 drawing format, ADM border/title block, north arrow, scale bar, revision table, DTF (Document Transmittal Form), 14-day RFI response, staged submission (Concept→Preliminary→Detailed) with per-discipline approval.
+• ITC (telecom): UCDM ROW-602, 4×100mm HDPE ducts, 80m pull-pit spacing, 0.6m cover.
+• ADNOC: 90° pipeline crossings, 10m exclusion zone, proximity NOC.
+• e&/Du/Etisalat, TRANSCO (132/33/11kV grid), EAD (environmental), GHQ (security), Tadweer (waste), MCC.
+• TPD (Traffic & Roads): boreholes, road geometry/pavement, utility corridors.
+
+BEHAVIOUR:
+- Be specific, technical, and direct. Reference exact standards, clause numbers, form names, and portals.
+- When you spot that a topic was discussed before by another team member, mention it so work isn't duplicated.
+- Provide actionable steps with clear owners (Mutaz/Aya/Nour/Anoud) and timelines.
+- For value engineering, suggest cost-saving alternatives that still meet authority requirements.
+- Remember and build on previous conversation context across the whole team.`;
 
 function renderAIPage(){
   const el=document.getElementById('pg-ai');
   if(el.querySelector('#chat-msgs'))return;
   el.innerHTML=`
-  <div style="padding:16px 0 12px;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;">
+  <div style="padding:16px 0 12px;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;gap:10px;flex-wrap:wrap;">
     <div>
       <div style="font-size:18px;font-weight:700;letter-spacing:-.025em;">AI Project Manager</div>
-      <div style="font-size:11px;color:var(--ink4);margin-top:2px;display:flex;align-items:center;gap:8px;">Groq · Llama 3.3 70B · Free · <span class="ai-memory-badge">🧠 Memory Active</span></div>
+      <div style="font-size:11px;color:var(--ink4);margin-top:2px;display:flex;align-items:center;gap:8px;">Groq · Llama 3.3 70B · Free · <span class="ai-memory-badge">🧠 Team Memory Active</span></div>
     </div>
-    <button class="btn btn-secondary btn-sm" onclick="clearChat()">🗑 Clear Chat</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select id="ai-proj-ctx" style="width:auto;font-size:11px;padding:6px 10px;">
+        <option value="">General (no project)</option>
+        ${myP(CUR.id).map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="clearChat()">🗑 Clear</button>
+    </div>
   </div>
   <div class="card" style="padding:0;flex:1;min-height:0;display:flex;flex-direction:column;">
     <div id="chat-msgs"></div>
@@ -2560,7 +2949,19 @@ function chatKD(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI();
 async function sendAI(){
   const inp=document.getElementById('chat-in');const msg=inp.value.trim();if(!msg)return;inp.value='';
   const el=document.getElementById('chat-msgs');const u=CUR;
+  const projCtx=document.getElementById('ai-proj-ctx')?.value||'';
   el.innerHTML+=`<div class="cm usr"><div class="cm-av" style="background:${u.color};width:26px;height:26px;border-radius:7px;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">${u.id}</div><div class="cm-bub"><div class="cm-who">${mName(u)}</div><div class="cm-txt"><p>${esc(msg)}</p></div></div></div>`;
+  // CROSS-REFERENCE: check if this was discussed before by a teammate on this project
+  if(projCtx){
+    const related=findRelatedDiscussions(msg,projCtx);
+    if(related.length){
+      el.innerHTML+=`<div class="cm"><div class="cm-av" style="background:var(--amber);">💡</div><div class="cm-bub"><div class="cm-who">Cross-Reference Alert</div><div class="cm-txt" style="background:var(--amber-lt);border-color:#f0cc7a;">
+        <p style="font-weight:600;">This topic was discussed before on ${pName(prj(projCtx))}:</p>
+        ${related.map(r=>`<p style="font-size:11px;">• <strong>${esc(r.userName||'A teammate')}</strong> asked: "${esc(r.q.substring(0,120))}" <span style="color:var(--ink4);">(${fmtS(r.time)})</span></p>`).join('')}
+        <p style="font-size:11px;color:var(--ink4);">Check with them to avoid duplicate work.</p>
+      </div></div></div>`;
+    }
+  }
   const tid='t'+Date.now();
   el.innerHTML+=`<div id="${tid}" class="cm"><div class="cm-av ai-av">🤖</div><div class="cm-bub"><div class="cm-who">AI</div><div class="cm-txt"><div style="display:flex;gap:4px;align-items:center;"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div></div></div>`;
   el.scrollTop=el.scrollHeight;
@@ -2572,7 +2973,7 @@ async function sendAI(){
   el.innerHTML+=`<div class="cm"><div class="cm-av ai-av">🤖</div><div class="cm-bub"><div class="cm-who">TeamFlow AI${GROQ_KEY?'':' · Demo'}</div><div class="cm-txt">${fmtAI(reply)}</div></div></div>`;
   el.scrollTop=el.scrollHeight;
   document.getElementById('send-btn').disabled=false;
-  await updateAIMemory(msg,reply);
+  await updateAIMemory(msg,reply,projCtx);
 }
 async function groqChat(msg){
   if(!GROQ_KEY)return demoAI(msg);
@@ -2797,6 +3198,20 @@ function skipConnect() {
   } else {
     document.getElementById('team-connect').style.display = 'none';
     document.getElementById('login').style.display = 'flex';
+  }
+
+  // CRITICAL: Guarantee MEMBERS is always valid before showing login grid
+  // This prevents the blank profile screen bug
+  if (!Array.isArray(MEMBERS) || MEMBERS.length === 0) {
+    MEMBERS = JSON.parse(JSON.stringify(SEED_MEMBERS));
+    LS.set('members', MEMBERS);
+    console.log('MEMBERS was empty — restored from seed');
+  }
+  // Ensure every member has required fields
+  MEMBERS = MEMBERS.filter(m => m && m.id && m.name);
+  if (MEMBERS.length === 0) {
+    MEMBERS = JSON.parse(JSON.stringify(SEED_MEMBERS));
+    LS.set('members', MEMBERS);
   }
 
   buildLoginGrid();
