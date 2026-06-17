@@ -446,6 +446,7 @@ td strong{color:var(--ink);}
       <div class="page" id="pg-ai" style="display:none;"></div>
       <div class="page" id="pg-statusreport"></div>
       <div class="page" id="pg-drawings"></div>
+      <div class="page" id="pg-handover"></div>
       <div class="page" id="pg-kpi"></div>
       <div class="page" id="pg-alltasks"></div>
       <div class="page" id="pg-team"></div>
@@ -628,6 +629,7 @@ async function syncFromDB() {
     if (data.routenoc) { ROUTE_NOC = data.routenoc; LS.set('routenoc', ROUTE_NOC); }
     if (data.notifications) { NOTIFICATIONS = data.notifications; LS.set('notifications', NOTIFICATIONS); if(CUR) updateNotifBadge(); }
     if (data.ai_memory) { AI_MEMORY = data.ai_memory; LS.set('ai_memory', AI_MEMORY); }
+    if (data.handovers) { HANDOVERS = data.handovers; LS.set('handovers', HANDOVERS); }
 
     // Sync Groq key — so team devices get it automatically when admin saves it
     if (data.groq_config?.k) {
@@ -650,12 +652,23 @@ async function syncFromDB() {
     // Only re-render if user is logged in
     if (CUR) {
       const pg = document.querySelector('.nb.on')?.getAttribute('onclick')?.match(/go\('(\w+)'\)/)?.[1];
-      if (pg && RENDERS[pg]) RENDERS[pg]();
+      // CRITICAL: NEVER auto-re-render pages that hold live AI results, chat, or open forms.
+      // Re-rendering wipes the user's AI output, drawing review, KPI analysis, or chat mid-read.
+      const PROTECTED_PAGES = ['ai','drawings','kpi','reports','statusreport'];
+      const modalOpen = document.getElementById('modal-ov')?.style.display === 'flex';
+      const aiBusy = window._aiResultActive === true;
+      if (pg && RENDERS[pg] && !PROTECTED_PAGES.includes(pg) && !modalOpen && !aiBusy) {
+        RENDERS[pg]();
+      } else if (pg === 'dash' && !modalOpen) {
+        RENDERS[pg](); // dashboard is safe to refresh
+      }
+      // Always refresh the notification badge (lightweight, non-destructive)
+      updateNotifBadge();
       const dot = document.getElementById('sync-dot');
       if (dot) { dot.style.background = '#10b981'; setTimeout(()=>{ if(SB_ENABLED) dot.style.background='var(--green)'; }, 800); }
     }
     // Rebuild login grid with latest members (even before login)
-    if (document.getElementById('user-grid')) buildLoginGrid();
+    if (document.getElementById('user-grid') && !CUR) buildLoginGrid();
   } catch(e) { console.warn('syncFromDB error:', e.message); }
 }
 
@@ -749,13 +762,14 @@ let TPD       = LS.get('tpd',       SEED_TPD);
 let ROUTE_NOC = LS.get('routenoc',  SEED_ROUTE_NOC);
 let NOTIFICATIONS = LS.get('notifications', []);
 let AI_MEMORY = LS.get('ai_memory', { context:[], facts:[], lastUpdated:null });
+let HANDOVERS = LS.get('handovers', []);
 let GROQ_KEY  = LS.get('groq', '');
 let LANG      = LS.get('lang', 'en');
 let CUR       = null;
 let chatHistory = [];
 
 async function persist(keys=['tasks','nocs']) {
-  const map = { tasks:TASKS, nocs:NOCS, projects:PROJECTS, members:MEMBERS, smarthub:SMARTHUB, tpd:TPD, routenoc:ROUTE_NOC, notifications:NOTIFICATIONS, ai_memory:AI_MEMORY };
+  const map = { tasks:TASKS, nocs:NOCS, projects:PROJECTS, members:MEMBERS, smarthub:SMARTHUB, tpd:TPD, routenoc:ROUTE_NOC, notifications:NOTIFICATIONS, ai_memory:AI_MEMORY, handovers:HANDOVERS };
   await Promise.all(keys.map(k => {
     LS.set(k, map[k]); // Always save full data locally (including PINs)
     // For Supabase: strip PINs from members before uploading — PINs are local-only
@@ -779,8 +793,10 @@ const esc  = s => (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/
 const prj  = id => PROJECTS.find(p=>p.id===id) || { name:'Unknown', nameAr:'غير معروف', color:'#888', members:[] };
 const mbr  = id => MEMBERS.find(m=>m.id===id)  || { name:'?', color:'#888', id:'?' };
 const myP  = uid => PROJECTS.filter(p=>p.members&&p.members.includes(uid));
-// FIX: Admin sees all tasks; members see only their own tasks on their projects
+// myT = my OWN tasks (for personal dashboard / KPI)
 const myT  = uid => { if(!CUR) return []; if(CUR.isAdmin) return TASKS; const pids=myP(uid).map(p=>p.id); return TASKS.filter(t=>t.owner===uid && pids.includes(t.proj)); };
+// myVisT = ALL tasks I can SEE — my own + teammates' tasks on projects I share with them
+const myVisT = uid => { if(!CUR) return []; if(CUR.isAdmin) return TASKS; const pids=myP(uid).map(p=>p.id); return TASKS.filter(t=>pids.includes(t.proj)); };
 const myN  = uid => { if(!CUR) return []; if(CUR.isAdmin) return NOCS; const pids=myP(uid).map(p=>p.id); return NOCS.filter(n=>pids.includes(n.proj)); };
 const pName= p => LANG==='ar'?(p.nameAr||p.name):p.name;
 const mName= m => LANG==='ar'?(m.nameAr||m.name):m.name;
@@ -1019,6 +1035,7 @@ const PG = {
   ai:{en:'AI Assistant',ar:'المساعد الذكي',sub:{en:'Groq · Free · Remembers your project history',ar:'Groq · مجاني · يتذكر تاريخ مشاريعك'}},
   statusreport:{en:'Project Status Report',ar:'تقرير حالة المشروع',sub:{en:'Printable PDF — current status · pending items · key dates',ar:'تقرير قابل للطباعة'}},
   drawings:{en:'Drawing Review (AI)',ar:'مراجعة المخططات',sub:{en:'AI conflict detection · UCDM & Abu Dhabi authority compliance',ar:'كشف التعارضات بالذكاء الاصطناعي'}},
+  handover:{en:'Leave Handover',ar:'تسليم المهام',sub:{en:'Professional task & access handover when going on leave',ar:'تسليم احترافي للمهام والصلاحيات'}},
   kpi:{en:'Team KPI & Performance',ar:'مؤشرات أداء الفريق',sub:{en:'AI-analysed performance metrics and recommendations',ar:'تحليل الأداء بالذكاء الاصطناعي'}},
   alltasks:{en:'All Tasks',ar:'جميع المهام',sub:{en:'Admin — full task view',ar:'عرض شامل للمهام'}},
   team:{en:'Team Management',ar:'إدارة الفريق',sub:{en:'Add members, assign projects, set PINs',ar:'إضافة أعضاء وتعيين مشاريع'}},
@@ -1031,6 +1048,7 @@ const RENDERS = {
   noc:renderNOC, smarthub:renderSmartHub, submissions:renderSubmissions,
   deadlines:renderDeadlines, ai:renderAIPage,
   statusreport:renderStatusReport, drawings:renderDrawings,
+  handover:renderHandover,
   alltasks:renderAllTasks, team:renderTeam, allprojects:renderAllProjects,
   reports:renderReports, kpi:renderKPI, settings:renderSettings,
 };
@@ -1054,6 +1072,7 @@ function buildNav() {
   h += sec('AI');
   h += nb('ai','🤖',LANG==='ar'?'المساعد':'AI Assistant');
   h += nb('drawings','📐',LANG==='ar'?'مراجعة المخططات':'Drawing Review');
+  h += nb('handover','🤝',LANG==='ar'?'تسليم المهام':'Leave Handover');
   h += nb('settings','⚙️',LANG==='ar'?'الإعدادات':'Settings'); // visible to all — for personal Groq key
   if(u.isAdmin){
     h += sec(LANG==='ar'?'إدارة':'Admin');
@@ -1067,6 +1086,8 @@ function buildNav() {
   document.getElementById('nav-list').innerHTML = h;
 }
 function go(id) {
+  // Clear the AI-results protection flag whenever the user navigates to a new page
+  window._aiResultActive = false;
   document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.style.display='';});
   document.querySelectorAll('.nb').forEach(n=>n.classList.remove('on'));
   const pg = document.getElementById('pg-'+id);
@@ -1166,8 +1187,9 @@ function renderTasks() {
   const prjs=u.isAdmin?PROJECTS:myP(u.id);
   el.innerHTML=`
   <div class="sec-hdr">
-    <div><div class="sec-title">Task Board</div><div class="sec-sub">${u.isAdmin?'All team tasks — Admin view':'Your assigned tasks'}</div></div>
+    <div><div class="sec-title">Task Board</div><div class="sec-sub">${u.isAdmin?'All team tasks — Admin view':'Your tasks + shared-project tasks'}</div></div>
     <div class="sec-acts">
+      ${!u.isAdmin?`<select id="kf-scope" style="width:auto;" onchange="renderKanban()"><option value="mine">My Tasks</option><option value="shared">My + Shared Projects</option></select>`:''}
       <select id="kf-proj" style="width:auto;" onchange="renderKanban()"><option value="">All Projects</option>${prjs.map(p=>`<option value="${p.id}">${pName(p)}</option>`).join('')}</select>
       <select id="kf-prio" style="width:auto;" onchange="renderKanban()"><option value="">All Priorities</option><option>critical</option><option>high</option><option>medium</option><option>low</option></select>
       ${u.isAdmin?`<select id="kf-owner" style="width:auto;" onchange="renderKanban()"><option value="">All Members</option>${MEMBERS.map(m=>`<option value="${m.id}">${mName(m)}</option>`).join('')}</select>`:''}
@@ -1182,7 +1204,9 @@ function renderKanban() {
   const pF=document.getElementById('kf-proj')?.value||'';
   const prF=document.getElementById('kf-prio')?.value||'';
   const oF=document.getElementById('kf-owner')?.value||'';
-  let tasks=myT(u.id);
+  const scope=document.getElementById('kf-scope')?.value||'mine';
+  // Shared scope shows all tasks on projects I'm a member of (including teammates')
+  let tasks = (!u.isAdmin && scope==='shared') ? myVisT(u.id) : myT(u.id);
   if(pF)tasks=tasks.filter(t=>t.proj===pF);
   if(prF)tasks=tasks.filter(t=>t.priority===prF);
   if(oF)tasks=tasks.filter(t=>t.owner===oF);
@@ -1190,18 +1214,19 @@ function renderKanban() {
   el.innerHTML=KB_COLS.map(col=>{
     const items=tasks.filter(t=>t.status===col.id);
     return `<div class="kb-col"><div class="kb-hd"><div class="kb-dot" style="background:${col.c};"></div>${col.label}<span class="kb-ct">${items.length}</span></div>
-    <div class="kb-items">${items.map(tcCard).join('')}${!items.length?`<div style="padding:18px;text-align:center;font-size:11px;color:var(--ink5);">—</div>`:''}</div></div>`;
+    <div class="kb-items">${items.map(t=>tcCard(t,scope==='shared'&&t.owner!==u.id)).join('')}${!items.length?`<div style="padding:18px;text-align:center;font-size:11px;color:var(--ink5);">—</div>`:''}</div></div>`;
   }).join('');
 }
-function tcCard(task) {
+function tcCard(task, isTeammate=false) {
   const p=prj(task.proj);const m=mbr(task.owner);const d=dF(task.due);
   const dc=d<0?'var(--red)':d===0?'var(--amber)':d<=2?'var(--blue-md)':'var(--ink4)';
-  return `<div class="tc" onclick="openTask('${task.id}')">
+  return `<div class="tc" onclick="openTask('${task.id}')" ${isTeammate?'style="border-left:3px solid '+m.color+';opacity:.92;"':''}>
     <div class="tc-title">${esc(task.title)}</div>
     <div class="tc-proj"><span style="width:6px;height:6px;border-radius:50%;background:${p.color};flex-shrink:0;display:inline-block;"></span>${pName(p)}${task.auth?' · '+task.auth:''}</div>
     <div class="tc-foot">
       <div class="pd ${PPAT[task.priority]}"></div>
       <span class="tag ${PTAG[task.priority]}">${task.priority}</span>
+      ${isTeammate?`<span style="font-size:9px;color:${m.color};font-weight:700;margin-left:4px;">${m.name}</span>`:''}
       <div class="av" style="background:${m.color};margin-left:auto;" title="${m.name}">${m.id}</div>
       <span style="font-size:10px;font-weight:600;color:${dc};">📅${fmtS(task.due)}</span>
     </div>
@@ -1263,19 +1288,30 @@ async function saveTask(id) {
     task.auth=document.getElementById('et-a').value;
     task.owner=document.getElementById('et-o').value;
     task.priority=document.getElementById('et-pr').value;
+    const prevStatus=task.status;
     task.status=document.getElementById('et-s').value;
     task.due=document.getElementById('et-d').value;
     task.txn=document.getElementById('et-txn').value;
     task.notes=document.getElementById('et-n').value;
     task.updatedBy=CUR.id;
     task.updatedAt=new Date().toISOString();
+    // RECORD COMPLETION TIME — needed for KPI on-time calculation
+    if(task.status==='done' && prevStatus!=='done'){
+      task.completedAt=new Date().toISOString();
+      task.completedBy=CUR.id;
+      // Was it completed late? (after the due date)
+      task.completedLate = task.due ? (new Date() > new Date(task.due+'T23:59:59')) : false;
+    } else if(task.status!=='done'){
+      // Reopened — clear completion data
+      delete task.completedAt; delete task.completedBy; delete task.completedLate;
+    }
     await persist(['tasks']);
     // Notify if assigned to someone new
     if(task.owner!==prevOwner&&task.owner!==CUR.id) {
       await addNotification(`📋 Task Assigned to You`, `"${task.title}" — due ${fmtS(task.due)}`, 'task', task.owner);
     }
-    if(task.status==='done'&&CUR.id!=='MH') {
-      await addNotification(`✅ Task Completed`, `"${task.title}" marked done by ${CUR.name}`, 'task', 'MH');
+    if(task.status==='done'&&prevStatus!=='done'&&CUR.id!=='MH') {
+      await addNotification(`✅ Task Completed`, `"${task.title}" completed by ${CUR.name}${task.completedLate?' (late)':' (on time)'}`, 'task', 'MH');
     }
   }
   closeModal();renderKanban();renderDash();
@@ -1560,35 +1596,46 @@ function uploadSmartHubReport(pid){
   inp.onchange=e=>{const f=e.target.files[0];if(f)analyzeSmartHubReport(f,pid);};inp.click();
 }
 async function analyzeSmartHubReport(file,pid){
+  window._aiResultActive=true;
   const p=PROJECTS.find(x=>x.id===pid);
   openModal(`Analyzing SmartHub Report — ${pName(p)}`,
     `<div style="display:flex;gap:10px;align-items:center;padding:24px;"><div class="spin"></div><span>AI is reading the report and extracting all comments, conditions, and required actions...</span></div>`,'');
-  const prompt=`You are an expert ADM SmartHub reviewer for CDM Smith Abu Dhabi.
-Analyze this SmartHub/IDAS submission report for: ${pName(p)} (${p.phase}, Stage: ${p.currentStage||'—'}, TXN: ${p.txn||'—'})
+  const prompt=`You are a senior ADM SmartHub / DMT-IDAS reviewer-analyst for CDM Smith Abu Dhabi, reading an actual SmartHub "Services / Infrastructure Designs Approval" report.
 
-STEP 1 — SUBMISSION SUMMARY:
-Extract transaction ID, stage, overall status, and submission date.
+PROJECT: ${pName(p)} (${p.phase}, Stage: ${p.currentStage||'—'}, TXN: ${p.txn||'—'})
 
-STEP 2 — DISCIPLINE STATUS TABLE:
-List every discipline with its status (Approved / In Progress / New / Need Modification).
-For each NOT approved, quote the exact ADM comment or condition.
+The SmartHub report structure you MUST read:
+- Project Disciplines status grid: each discipline (Road Geometry, Structure, Lighting, BIM, Irrigation, Material Design, Landscape, Storm Water, Traffic Design, Geotechnical, Road Pavement, Electro Mechanical) shows status per stage: "Approved With Notes" (AAN), "Return For Modification" (RFM), "Not Applicable", "Not Submitted", "Need Approval".
+- Technical Review section: each reviewer's name, date, version (V1..V6) and detailed comment text per discipline.
+- Application Details: Application Number, version, CompleteStatus (e.g. "Return For Modification"), submit/complete dates.
 
-STEP 3 — REQUIRED ACTIONS PER CONDITION:
-For each unresolved condition:
-- Exact ADM requirement
-- Specific drawing/document to revise (reference ADM drawing standards: A1 format, title block, north arrow, scale bar, revision table, DTF form)
-- Who resolves it: Mutaz (coordination), Aya (drawings), Nour (follow-up), Anoud (documentation)
-- Estimated days to resolve
-- Severity: CRITICAL / MAJOR / MINOR
+READ THE ACTUAL CONTENT and produce:
 
-STEP 4 — TASK LIST (use EXACTLY this format for each task):
-TASK: [specific action — be precise, include drawing number if applicable]
+**1. SUBMISSION SUMMARY**
+Application number + version, overall CompleteStatus, submit & complete dates, project owner/consultant.
+
+**2. DISCIPLINE STATUS** (read the grid AND the technical review)
+For each discipline: current status (AAN / RFM / etc.) and the LATEST reviewer + version. Clearly separate:
+- RFM disciplines (Return For Modification) — these block approval and need action NOW
+- AAN disciplines (Approved As Noted) — approved with conditions to honour
+- Pending / not submitted
+
+**3. KEY RFM COMMENTS PER DISCIPLINE** (read the actual reviewer text)
+Summarise the real technical comments. Reference specific drawing numbers (e.g. SHIPR-IN-CDM-...), ADQCC standards (TR-513, TR-514, TR-541-1, GM-2), inlet refs (ST-xxxx), and exact requirements (e.g. Stormwater: rollover kerb feasibility, 1.0m min spacing, 50m inlet spacing, negative slopes, integrated hydraulic model; Road Pavement: ESAL per TR-513, Mr values, geogrid; Geotechnical: salt content limits, capillary break; Irrigation: TAQA quantity 12,519 vs 13,254 m³/day deficit, cost-saving 90mm→63mm laterals; Landscape: ITC stamped drawings, cycle track asphalt; Road Geometry: ITC approval vs proposed design, RSA Stage 2 DTF).
+
+**4. PRIORITISED ACTION PLAN**
+Order by what's blocking SmartHub approval. Note repeat comments (carried V1→V6 unresolved = high risk).
+
+**5. TASK LIST** — one TASK block per open RFM discipline (and any AAN condition needing action). Use EXACTLY:
+TASK: [discipline + precise action, include drawing no. or standard]
 ASSIGN: [Mutaz or Aya or Nour or Anoud]
-PRIORITY: [critical or high or medium or low]
-DUE: [number of days from today, e.g. 7]
-NOTES: [ADM standard reference, form number, portal name, specific requirement]
+PRIORITY: [critical if blocking & repeated, high for RFM, medium for AAN conditions]
+DUE: [days from today]
+NOTES: [reviewer name, version, ADQCC ref, drawing no., exact requirement]
 
-Create at least one TASK block per unresolved discipline. Minimum 3 tasks total.`;
+Generate a task for EVERY RFM discipline. Minimum 5 tasks. Be specific to the real comments — no generic advice.
+
+Assign logic: Aya=drawings/CAD/legends/layouts; Nour=reviewer follow-up & CRS responses; Anoud=reports/appendices/compliance forms/letters; Mutaz=cross-discipline coordination & approval strategy.`;
   const reply = await groqAnalyzeFile(file, prompt);
   const tasks = extractTasksFromAnalysis(reply, pid);
   openModal(`SmartHub AI Analysis — ${pName(p)}`,`
@@ -1600,7 +1647,7 @@ Create at least one TASK block per unresolved discipline. Minimum 3 tasks total.
     <div style="max-height:420px;overflow-y:auto;font-size:12.5px;line-height:1.7;">${fmtAI(reply)}</div>`,
   `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
    <button class="btn btn-primary" onclick="createAnalysisTasks(${JSON.stringify(tasks).replace(/'/g,"\\'")},'${pid}')">📋 Create ${tasks.length} Tasks</button>`);
-  await updateAIMemory(`SmartHub analysis for ${pName(p)}`, reply);
+  await updateAIMemory(`SmartHub analysis for ${pName(p)}`, reply, pid);
 }
 function extractTasksFromAnalysis(text, pid) {
   const tasks = [];
@@ -1781,28 +1828,48 @@ async function saveRouteNOC(id){
   await persist(['routenoc']);closeModal();renderSubmissions();
 }
 async function uploadNOCReport(pid){
+  window._aiResultActive=true;
   const inp=document.createElement('input');inp.type='file';inp.accept='.pdf';
   inp.onchange=async e=>{
     const f=e.target.files[0];if(!f)return;
     const p=PROJECTS.find(x=>x.id===pid);
     openModal('Analyzing eNOC Report',`<div style="display:flex;gap:10px;align-items:center;padding:24px;"><div class="spin"></div><span>Reading eNOC report… extracting authority statuses, pending actions, and transaction IDs...</span></div>`,'');
-    const prompt=`You are an expert Abu Dhabi infrastructure eNOC analyst for CDM Smith.
-Analyze this eNOC Portal report for: ${pName(p)} (TXN: ${p.txn||'—'}, Phase: ${p.phase})
+    const prompt=`You are a senior Abu Dhabi infrastructure eNOC analyst for CDM Smith. You are reading an actual eNOC Portal Report (the official NOC program PDF for Utilities & Infrastructure).
 
-STEP 1 — TRANSACTION DETAILS: Extract Transaction ID, project name, submission date, overall status.
+PROJECT CONTEXT: ${pName(p)} (TXN: ${p.txn||'—'}, Phase: ${p.phase})
 
-STEP 2 — AUTHORITY STATUS: List EVERY authority with status (Approved/In Progress/New/Need Modification).
+The eNOC report has this structure you MUST read carefully:
+- Section 1: Project Information (name, number, applicant, contact)
+- Section 2: Transaction Information (Transaction ID, Stage, Service Type)
+- Section 3: NOC Reply Summary (counts of Approved / Approval with Conditions / Need Modification / Rejection / In Progress)
+- Section 5: Entities Replies Detail — EACH authority (ADM, ADDC, MCC, ADNOC, TWS/Taqa Water, ITC, Du, EAD, Etihad Rail, GHQ, TABREED, TRANSCO, DCT, Etisalat, Tadweer) with its STATUS and its exact COMMENTS/CONDITIONS and dates.
 
-STEP 3 — ACTIONS REQUIRED: For each pending authority — exact portal, documents needed, who does it (Mutaz=coordination, Aya=drawings, Nour=follow-up, Anoud=docs), days estimate, priority.
+READ THE ACTUAL CONTENT and produce:
 
-STEP 4 — TASK LIST — use EXACTLY this format for each action:
-TASK: [precise action — e.g. Submit TAQA UCR conflict register for Segment A]
+**1. TRANSACTION SUMMARY**
+Transaction ID, project name, stage, generated date, and the reply summary counts.
+
+**2. AUTHORITY-BY-AUTHORITY STATUS** (read every entity in Section 5)
+For each authority give: name, exact status, and a SHORT plain-English summary of what they actually said (their specific comments/conditions — quote key technical requirements like clearances, duct sizes, drawing/format requirements, coordinate systems).
+Pay special attention to:
+- Authorities that are REJECTED (highest priority — e.g. GHQ requiring shapefile + undertaking letter)
+- NEED MODIFICATION (e.g. MCC conflicts, ITC layer issues)
+- APPROVAL WITH CONDITIONS (TWS document requirements, conditions that can void approval)
+- NEW (not yet replied — ADDC, Du, Etisalat — need follow-up)
+
+**3. CRITICAL CONFLICTS & TECHNICAL REQUIREMENTS**
+Extract specific technical demands, e.g.: MCC 1.0m clearance + 2×75mm road crossing ducts in cycle track; TWS colored drawing with legends in WGS84 Zone 40; ITC single-line proposed layer in CAD WGS84; GHQ shapefile + undertaking letter; ADM IDAS+TPD approval condition and GIS conflict resolution.
+
+**4. TASK LIST** — one TASK block per pending/conditional/rejected authority. Use EXACTLY:
+TASK: [precise action with authority name and specific requirement]
 ASSIGN: [Mutaz or Aya or Nour or Anoud]
-PRIORITY: [critical or high or medium or low]
-DUE: [number of days, e.g. 7]
-NOTES: [form number, portal, Abu Dhabi standard reference]
+PRIORITY: [critical for Rejected/blocking, high for Need Modification, medium for conditions]
+DUE: [days from today]
+NOTES: [exact requirement, portal, format, coordinate system, contact email if given]
 
-Generate a TASK block for every pending authority. Minimum 4 tasks total. Reference exact standards: TAQA/ADDC 1.2m cover, DMT Form DMT-01, ADM A1 drawings, ITC UCDM ROW-602, ADSSC Manning equation.`;
+Generate a task for EVERY authority that is not fully Approved. Be specific — reference the actual comment text. Minimum 6 tasks for a typical report.
+
+Assign logic: Aya=drawings/CAD/layers/legends; Nour=authority follow-up & coordination; Anoud=documents/letters/undertakings/zip submissions; Mutaz=escalation & approvals strategy.`;
     const reply = await groqAnalyzeFile(f, prompt);
     const tasks = extractTasksFromAnalysis(reply, pid);
     openModal(`eNOC Analysis — ${pName(p)}`,`
@@ -1814,7 +1881,7 @@ Generate a TASK block for every pending authority. Minimum 4 tasks total. Refere
       <div style="max-height:420px;overflow-y:auto;font-size:12.5px;line-height:1.7;">${fmtAI(reply)}</div>`,
     `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
      <button class="btn btn-primary" onclick="createAnalysisTasks(${JSON.stringify(tasks).replace(/'/g,"\\'")},'${pid}')">📋 Create ${tasks.length} Tasks</button>`);
-    await updateAIMemory(`eNOC report analysis for ${pName(p)}`, reply);
+    await updateAIMemory(`eNOC report analysis for ${pName(p)}`, reply, pid);
   };inp.click();
 }
 
@@ -1888,6 +1955,7 @@ function pickDrawing(){
   inp.click();
 }
 async function reviewDrawing(file){
+  window._aiResultActive=true;
   const pid=document.getElementById('dwg-proj').value;
   const type=document.getElementById('dwg-type').value;
   const p=prj(pid);
@@ -1900,31 +1968,45 @@ async function reviewDrawing(file){
     dmt:`Check this drawing for DMT cycle track and road geometry: cycle track width, at-grade vs grade-separated requirements, drainage manhole offsets from track, clearances, kerb details. Flag issues.`,
     full:`Perform a FULL multi-authority review: TAQA/ADDC power, ADSSC drainage, ITC/e&/Du telecom, ADNOC pipelines, DMT roads, UCDM corridor standards. Check all clearances, crossings, separations, depths.`
   };
-  const prompt=`You are an expert Abu Dhabi infrastructure drawing reviewer for CDM Smith, reviewing a drawing for project: ${pName(p)}.
+  const prompt=`You are a senior Abu Dhabi infrastructure drawing reviewer for CDM Smith, reviewing an actual engineering drawing (PDF/image) for project: ${pName(p)}.
 
+CRITICAL FIRST STEP — READ THE DRAWING PROPERLY:
+1. Read the TITLE BLOCK (bottom-right): drawing number, title, revision, scale, consultant/contractor, date.
+2. Read the LEGEND / KEY carefully — list every symbol and line type and what it represents (e.g. proposed road, cycle track, existing electrical cable, duct protection for existing cable, cable to be relocated, proposed electric cable, cable joint, relocated service turret/control cabinet/meter box). The legend is how you understand the drawing — quote it back.
+3. Read GENERAL NOTES (units, coordinate system e.g. WGS84 Zone 40N).
+4. Read any COORDINATE / SCHEDULE TABLES (e.g. CR# protection-location points with Easting/Northing).
+5. Identify the discipline and scope from what you read (e.g. "Protection for existing electrical cable in proposed work area Zone-02 for Al Daoon Road dualization").
+
+THEN APPLY THE RELEVANT STANDARDS:
 ${typePrompts[type]}
 
 Provide your review in this EXACT structure:
 
 DRAWING SUMMARY:
-[What the drawing shows — discipline, scope, scale if visible]
+[Drawing number, title, revision, scale, discipline, and scope — based on the title block and legend you actually read]
+
+LEGEND INTERPRETATION:
+[List the key legend items you read and what the drawing is showing using them]
 
 CONFLICTS DETECTED:
 For each conflict use this format:
 CONFLICT: [short title]
 SEVERITY: [CRITICAL/MAJOR/MINOR]
-LOCATION: [where on the drawing — gridref, chainage, or description]
-STANDARD: [which Abu Dhabi standard/clause is violated]
-ISSUE: [what is wrong]
-RECOMMENDATION: [how to fix it]
+LOCATION: [where — grid ref, CR# point, chainage, zone, or description from the drawing]
+STANDARD: [exact Abu Dhabi standard/clause — TAQA/ADDC cover & encasement, UCDM ROW-602 separation/sequence, ADSSC, DMT cycle track, ADQCC TR-xxx]
+ISSUE: [what is wrong, referencing the legend items / coordinates]
+RECOMMENDATION: [specific fix and the responsible authority approach]
 
 COMPLIANCE CHECKLIST:
-List each standard checked with ✓ (pass) or ✗ (fail).
+List each relevant standard checked with ✓ (pass) / ✗ (fail) / ⚠ (verify).
+
+REQUIRED ACTIONS & APPROACH:
+Concrete next steps to make this drawing approvable by the relevant utility provider, including what to coordinate and which authority NOC is needed.
 
 OVERALL ASSESSMENT:
 [Ready for submission / Needs revision / Major rework needed]
 
-Reference exact Abu Dhabi standards and clause numbers. Be specific and technical.`;
+Be specific and technical — refer to what you actually read in the legend, title block and tables. If the drawing is an image you cannot fully read, say which parts are unclear and give your best assessment based on the visible legend and title.`;
   const reply=await groqAnalyzeFile(file, prompt);
   // Parse conflicts for severity counts
   const critical=(reply.match(/SEVERITY:\s*CRITICAL/gi)||[]).length;
@@ -2034,6 +2116,7 @@ function renderKPI(){
   <div id="kpi-ai-result"></div>`;
 }
 async function aiAnalyzeMember(uid){
+  window._aiResultActive=true;
   const m=mbr(uid); const k=calcKPI(uid);
   const mTasks=TASKS.filter(t=>t.owner===uid);
   const res=document.getElementById('kpi-ai-result');
@@ -2066,6 +2149,7 @@ Be specific to infrastructure PM work and Abu Dhabi authority deadlines.`;
   await updateAIMemory(`Performance analysis for ${mName(m)}`, reply);
 }
 async function aiAnalyzeTeam(){
+  window._aiResultActive=true;
   const res=document.getElementById('kpi-ai-result');
   res.innerHTML=`<div class="card"><div style="display:flex;gap:10px;align-items:center;"><div class="spin"></div><span>AI analysing whole team performance…</span></div></div>`;
   const members=MEMBERS.filter(m=>!m.isAdmin);
@@ -2101,6 +2185,203 @@ function printKPIReport(){
   <p style="color:#666;">CDM Smith · Abu Dhabi · ${new Date().toLocaleDateString('en-GB')} · Prepared by ${CUR.name}</p>
   <table><thead><tr><th>Team Member</th><th>Score</th><th>Completion</th><th>On-Time</th><th>Done/Total</th><th>Overdue</th></tr></thead><tbody>${rows}</tbody></table>
   ${window._lastTeamAnalysis?'<h2 style="color:#333;border-bottom:2px solid #1a56db;">AI Analysis</h2><pre>'+window._lastTeamAnalysis.replace(/[<>]/g,'').replace(/\*\*/g,'')+'</pre>':''}
+  </body></html>`);
+  w.document.close(); setTimeout(()=>w.print(),400);
+}
+
+// ═══════════════════════════════════════════
+// LEAVE HANDOVER — professional task & access transfer
+// ═══════════════════════════════════════════
+function renderHandover(){
+  const u=CUR;
+  const el=document.getElementById('pg-handover');
+  const activeHandovers=HANDOVERS.filter(h=>h.status==='active');
+  // Members the current user can create a handover FOR:
+  // - admin can do it for anyone; a normal member only for themselves
+  const candidates = u.isAdmin ? MEMBERS.filter(m=>!m.isAdmin || m.id!==u.id) : [u];
+  el.innerHTML=`
+  <div class="sec-hdr">
+    <div><div class="sec-title">Leave Handover</div>
+    <div class="sec-sub">Professional handover when a team member goes on leave — transfer tasks & grant cover access</div></div>
+    <button class="btn btn-primary btn-sm" onclick="openHandoverWizard()">🤝 New Handover</button>
+  </div>
+
+  <div class="alert al-b" style="margin-bottom:16px;">
+    🤝 When someone goes on leave, set up a handover: their open tasks are reassigned (or shadow-assigned) to a covering colleague, who gets temporary access to act on their behalf. ${u.isAdmin?'As admin, you control all handovers.':'You can set up your own handover, which Mutaz will be notified of.'}
+  </div>
+
+  ${activeHandovers.length?`
+  <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin-bottom:10px;">ACTIVE HANDOVERS</div>
+  ${activeHandovers.map(h=>{
+    const from=mbr(h.from); const to=mbr(h.to);
+    const tasks=TASKS.filter(t=>h.taskIds.includes(t.id));
+    const doneCount=tasks.filter(t=>t.status==='done').length;
+    return `<div class="card" style="margin-bottom:12px;border-left:4px solid ${from.color};">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:34px;height:34px;border-radius:9px;background:${from.color};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:12px;">${from.id}</div>
+          <div><div style="font-size:13px;font-weight:700;">${from.name}</div><div style="font-size:10px;color:var(--ink4);">On leave${h.from_date?' from '+fmtS(h.from_date):''}${h.to_date?' to '+fmtS(h.to_date):''}</div></div>
+        </div>
+        <div style="font-size:20px;color:var(--ink4);">→</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:34px;height:34px;border-radius:9px;background:${to.color};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:12px;">${to.id}</div>
+          <div><div style="font-size:13px;font-weight:700;">${to.name}</div><div style="font-size:10px;color:var(--ink4);">Covering · has access</div></div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <span class="tag tg-b">${tasks.length} tasks</span>
+          <span class="tag tg-g">${doneCount} done</span>
+        </div>
+      </div>
+      ${h.notes?`<div style="font-size:12px;color:var(--ink3);background:var(--bg);padding:8px 12px;border-radius:var(--r);margin-bottom:10px;"><strong>Handover notes:</strong> ${esc(h.notes)}</div>`:''}
+      <div style="font-size:11px;font-weight:700;color:var(--ink4);margin-bottom:6px;">HANDED-OVER TASKS</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">
+        ${tasks.map(t=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border-radius:var(--r);">
+          <div class="pd ${PPAT[t.priority]}"></div>
+          <span style="flex:1;font-size:12px;${t.status==='done'?'text-decoration:line-through;color:var(--ink5);':''}">${esc(t.title)}</span>
+          <span style="font-size:10px;color:var(--ink4);">${pName(prj(t.proj))}</span>
+          <span class="tag ${t.status==='done'?'tg-g':'tg-b'}" style="font-size:9px;">${t.status}</span>
+        </div>`).join('')||'<div style="font-size:11px;color:var(--ink5);">No tasks</div>'}
+      </div>
+      ${(u.isAdmin||u.id===h.from||u.id===h.to)?`<div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="printHandover('${h.id}')">🖨 Handover Document</button>
+        <button class="btn btn-danger btn-sm" onclick="endHandover('${h.id}')">✓ End Handover (${from.name} back)</button>
+      </div>`:''}
+    </div>`;
+  }).join('')}
+  `:`<div class="card" style="text-align:center;padding:32px;color:var(--ink4);">
+    <div style="font-size:32px;margin-bottom:8px;">🤝</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:4px;">No active handovers</div>
+    <div style="font-size:12px;">When someone plans leave, click "New Handover" to transfer their work professionally.</div>
+  </div>`}
+
+  ${HANDOVERS.filter(h=>h.status==='ended').length?`
+  <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink4);margin:20px 0 10px;">PAST HANDOVERS</div>
+  ${HANDOVERS.filter(h=>h.status==='ended').slice(-5).reverse().map(h=>{
+    const from=mbr(h.from);const to=mbr(h.to);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:var(--r);margin-bottom:6px;font-size:12px;">
+      <span style="font-weight:600;">${from.name}</span><span style="color:var(--ink4);">→</span><span style="font-weight:600;">${to.name}</span>
+      <span style="margin-left:auto;color:var(--ink5);font-size:10px;">${h.ended_at?fmtS(h.ended_at):''} · ${h.taskIds.length} tasks</span>
+    </div>`;
+  }).join('')}`:''}`;
+}
+
+function openHandoverWizard(){
+  const u=CUR;
+  // Who is going on leave
+  const fromOptions = u.isAdmin ? MEMBERS : [u];
+  const defaultFrom = u.isAdmin ? MEMBERS[0].id : u.id;
+  openModal('New Leave Handover',`
+    <div class="alert al-b" style="margin-bottom:14px;">Set up a professional handover. The covering colleague will receive the selected tasks and be notified.</div>
+    <div class="r2">
+      <div class="fg"><div class="lbl">Person going on leave</div>
+        <select id="ho-from" onchange="hoRefreshTasks()">${fromOptions.map(m=>`<option value="${m.id}" ${m.id===defaultFrom?'selected':''}>${mName(m)}</option>`).join('')}</select>
+      </div>
+      <div class="fg"><div class="lbl">Covering colleague</div>
+        <select id="ho-to">${MEMBERS.filter(m=>m.id!==defaultFrom).map(m=>`<option value="${m.id}">${mName(m)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="r2">
+      <div class="fg"><div class="lbl">Leave from</div><input type="date" id="ho-fromdate"/></div>
+      <div class="fg"><div class="lbl">Leave to</div><input type="date" id="ho-todate"/></div>
+    </div>
+    <div class="fg"><div class="lbl">Handover notes (context, priorities, contacts)</div>
+      <textarea id="ho-notes" placeholder="e.g. TAQA escalation letter is the top priority — Eng. Colin at DMT is waiting. Aya has the latest drawings..."></textarea>
+    </div>
+    <div class="fg"><div class="lbl">Select tasks to hand over</div>
+      <div id="ho-tasklist" style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);padding:8px;"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:8px;cursor:pointer;">
+      <input type="checkbox" id="ho-reassign" checked style="width:auto;"/> Reassign selected tasks to the covering colleague (unchecked = they get access but ownership stays)
+    </label>`,
+  `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+   <button class="btn btn-primary" onclick="createHandover()">🤝 Create Handover</button>`);
+  hoRefreshTasks();
+}
+function hoRefreshTasks(){
+  const from=document.getElementById('ho-from').value;
+  // Update covering dropdown to exclude the from-person
+  const toSel=document.getElementById('ho-to');
+  if(toSel){ toSel.innerHTML=MEMBERS.filter(m=>m.id!==from).map(m=>`<option value="${m.id}">${mName(m)}</option>`).join(''); }
+  const openTasks=TASKS.filter(t=>t.owner===from && t.status!=='done');
+  const list=document.getElementById('ho-tasklist');
+  list.innerHTML=openTasks.length?openTasks.map(t=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:6px;cursor:pointer;font-size:12px;">
+      <input type="checkbox" class="ho-task" value="${t.id}" checked style="width:auto;"/>
+      <div class="pd ${PPAT[t.priority]}"></div>
+      <span style="flex:1;">${esc(t.title)}</span>
+      <span style="font-size:10px;color:var(--ink4);">${pName(prj(t.proj))} · ${fmtS(t.due)}</span>
+    </label>`).join(''):'<div style="font-size:11px;color:var(--ink5);padding:8px;">No open tasks for this person.</div>';
+}
+async function createHandover(){
+  const from=document.getElementById('ho-from').value;
+  const to=document.getElementById('ho-to').value;
+  if(from===to){alert('The covering colleague must be different from the person on leave.');return;}
+  const taskIds=Array.from(document.querySelectorAll('.ho-task:checked')).map(c=>c.value);
+  const reassign=document.getElementById('ho-reassign').checked;
+  const notes=document.getElementById('ho-notes').value;
+  const fromDate=document.getElementById('ho-fromdate').value||null;
+  const toDate=document.getElementById('ho-todate').value||null;
+  const ho={
+    id:'ho'+Date.now(), from, to, taskIds, reassign, notes,
+    from_date:fromDate, to_date:toDate, status:'active',
+    created_at:new Date().toISOString(), created_by:CUR.id,
+    originalOwners:{} // remember original owner so we can revert
+  };
+  // Apply: shadow-access always; reassign ownership if chosen
+  taskIds.forEach(tid=>{
+    const t=TASKS.find(x=>x.id===tid); if(!t)return;
+    ho.originalOwners[tid]=t.owner;
+    t.coveredBy=to; // grant access marker
+    if(reassign){ t.owner=to; t.handoverFrom=from; }
+  });
+  HANDOVERS.push(ho);
+  await persist(['handovers','tasks']);
+  // Notify the covering colleague + admin
+  await addNotification('🤝 Handover Assigned to You', `${mbr(from).name} handed over ${taskIds.length} task(s) to you${notes?': '+notes.substring(0,60):''}`, 'handover', to);
+  if(CUR.id!=='MH') await addNotification('🤝 Handover Created', `${mbr(from).name} → ${mbr(to).name} (${taskIds.length} tasks)`, 'handover', 'MH');
+  closeModal(); renderHandover();
+  alert(`✅ Handover created. ${mbr(to).name} now covers ${mbr(from).name}'s ${taskIds.length} task(s).`);
+}
+async function endHandover(id){
+  const ho=HANDOVERS.find(h=>h.id===id); if(!ho)return;
+  if(!confirm(`End this handover and return tasks to ${mbr(ho.from).name}?`))return;
+  // Revert ownership and remove access markers
+  ho.taskIds.forEach(tid=>{
+    const t=TASKS.find(x=>x.id===tid); if(!t)return;
+    if(ho.reassign && ho.originalOwners[tid]){ t.owner=ho.originalOwners[tid]; }
+    delete t.coveredBy; delete t.handoverFrom;
+  });
+  ho.status='ended'; ho.ended_at=new Date().toISOString(); ho.ended_by=CUR.id;
+  await persist(['handovers','tasks']);
+  await addNotification('🤝 Handover Ended', `${mbr(ho.from).name} is back — tasks returned`, 'handover', ho.from);
+  renderHandover();
+}
+function printHandover(id){
+  const ho=HANDOVERS.find(h=>h.id===id); if(!ho)return;
+  const from=mbr(ho.from); const to=mbr(ho.to);
+  const tasks=TASKS.filter(t=>ho.taskIds.includes(t.id));
+  const w=window.open('','_blank');
+  const taskRows=tasks.map(t=>`<tr><td><b>${esc(t.title)}</b></td><td>${pName(prj(t.proj))}</td><td>${t.auth||'—'}</td><td>${t.priority}</td><td>${fmtS(t.due)}</td><td>${t.status}</td><td style="font-size:11px;">${esc(t.notes||'')}</td></tr>`).join('');
+  w.document.write(`<html><head><title>Handover — ${from.name}</title>
+  <style>body{font-family:Arial;padding:30px;color:#1a1a1a;max-width:900px;margin:0 auto;}h1{color:#1a56db;}h2{color:#333;border-bottom:2px solid #1a56db;padding-bottom:4px;margin-top:24px;}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;}th{background:#f0f2f5;border:1px solid #ddd;padding:8px;text-align:left;font-size:10px;text-transform:uppercase;}td{border:1px solid #ddd;padding:8px;}.box{border:1px solid #ddd;border-radius:8px;padding:16px;margin:12px 0;background:#f9fafb;}</style>
+  </head><body>
+  <h1>Project Handover Document</h1>
+  <p style="color:#666;">CDM Smith · Abu Dhabi Infrastructure · ${new Date().toLocaleDateString('en-GB')}</p>
+  <div class="box">
+    <table style="border:none;"><tr style="border:none;">
+      <td style="border:none;"><b>Handing over:</b> ${from.name} (${from.role})<br><b>Leave period:</b> ${ho.from_date?fmtS(ho.from_date):'—'} to ${ho.to_date?fmtS(ho.to_date):'—'}</td>
+      <td style="border:none;"><b>Covering colleague:</b> ${to.name} (${to.role})<br><b>Handover created:</b> ${fmtS(ho.created_at)} by ${mbr(ho.created_by).name}</td>
+    </tr></table>
+  </div>
+  ${ho.notes?`<h2>Handover Notes</h2><p>${esc(ho.notes)}</p>`:''}
+  <h2>Tasks Handed Over (${tasks.length})</h2>
+  <table><thead><tr><th>Task</th><th>Project</th><th>Authority</th><th>Priority</th><th>Due</th><th>Status</th><th>Notes</th></tr></thead><tbody>${taskRows||'<tr><td colspan=7>No tasks</td></tr>'}</tbody></table>
+  <h2>Acknowledgement</h2>
+  <table style="border:none;"><tr style="border:none;">
+    <td style="border:none;padding-top:30px;">_______________________<br>${from.name} (Handing over)</td>
+    <td style="border:none;padding-top:30px;">_______________________<br>${to.name} (Receiving)</td>
+    <td style="border:none;padding-top:30px;">_______________________<br>Mutaz Hammad (PM)</td>
+  </tr></table>
   </body></html>`);
   w.document.close(); setTimeout(()=>w.print(),400);
 }
@@ -2731,6 +3012,7 @@ function renderReports(){
   <div id="ai-report"></div>`;
 }
 async function aiGenerateReport(){
+  window._aiResultActive=true;
   document.getElementById('ai-report').innerHTML=`<div class="card" style="margin-top:16px;"><div style="display:flex;gap:10px;align-items:center;"><div class="spin"></div><span>Generating AI weekly report...</span></div></div>`;
   const prompt=`Generate a professional weekly PM status report for CDM Smith Abu Dhabi infrastructure team.
 Projects: ${PROJECTS.map(p=>pName(p)).join(', ')}
@@ -2947,6 +3229,7 @@ function initChat(){
 function clearChat(){chatHistory=[];initChat();}
 function chatKD(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI();}}
 async function sendAI(){
+  window._aiResultActive=true;
   const inp=document.getElementById('chat-in');const msg=inp.value.trim();if(!msg)return;inp.value='';
   const el=document.getElementById('chat-msgs');const u=CUR;
   const projCtx=document.getElementById('ai-proj-ctx')?.value||'';
@@ -2983,9 +3266,9 @@ async function groqChat(msg){
     const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
-      body:JSON.stringify({model:'llama-3.3-70b-versatile',max_tokens:1400,temperature:.6,
+      body:JSON.stringify({model:'llama-3.3-70b-versatile',max_tokens:2400,temperature:.35,
         messages:[
-          {role:'system',content:AI_SYS+'\n\nCURRENT USER: '+mName(CUR)+' ('+CUR.role+')\nPROJECT STATUS:\n'+ctx+memCtx},
+          {role:'system',content:AI_SYS+'\n\nCURRENT USER: '+mName(CUR)+' ('+CUR.role+')\nPROJECT STATUS:\n'+ctx+memCtx+'\n\nIMPORTANT: Give specific, technical, actionable answers referencing exact Abu Dhabi standards, drawing numbers, form names and clause numbers. Never give generic advice — always tie your answer to the actual project context and real authority requirements.'},
           ...chatHistory.slice(-10)
         ]})
     });
@@ -3018,7 +3301,7 @@ async function groqAnalyzeFile(file, prompt) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
+        max_tokens: 4000,
         messages: [{ role:'user', content:[ block, { type:'text', text:prompt } ] }]
       })
     });
